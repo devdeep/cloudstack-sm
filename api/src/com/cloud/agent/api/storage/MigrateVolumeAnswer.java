@@ -14,37 +14,25 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-package com.cloud.agent.api;
+package com.cloud.agent.api.storage;
 
-import com.cloud.agent.api.to.VirtualMachineTO;
+import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.Command;
 
-public class PrepareForMigrationCommand extends Command {
-    VirtualMachineTO vm;
-    boolean isStorage;
+public class MigrateVolumeAnswer extends Answer {
+    private String volumePath;
 
-    protected PrepareForMigrationCommand() {
+    public MigrateVolumeAnswer(Command command, boolean success, String details, String volumePath) {
+        super(command, success, details);
+        this.volumePath = volumePath;
     }
 
-    public PrepareForMigrationCommand(VirtualMachineTO vm) {
-        this.vm = vm;
-        this.isStorage = false;
+    public MigrateVolumeAnswer(Command command) {
+        super(command);
+        this.volumePath = null;
     }
 
-    public PrepareForMigrationCommand(VirtualMachineTO vm, boolean isStorage) {
-        this.vm = vm;
-        this.isStorage = isStorage;
-    }
-
-    public VirtualMachineTO getVirtualMachine() {
-    	return vm;
-    }
-    
-    public boolean isStorage() {
-        return isStorage;
-    }
-
-    @Override
-    public boolean executeInSequence() {
-        return true;
+    public String getVolumePath() {
+        return volumePath;
     }
 }

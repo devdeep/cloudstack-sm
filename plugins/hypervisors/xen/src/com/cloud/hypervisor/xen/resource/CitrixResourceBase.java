@@ -2569,7 +2569,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                 getNetwork(conn, nic);
             }
             synchronized (_cluster.intern()) {
-	            s_vms.put(_cluster, _name, vm.getName(), State.Migrating);
+	            s_vms.put(_cluster, _name, vm.getName(), cmd.isStorage() ? State.MigratingWithStorage : State.Migrating);
             }
             s_logger.debug("4. The VM " +  vm.getName() + " is in Migrating state");
 
@@ -3140,7 +3140,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         vm.setMemoryLimits(conn, memsize, memsize, memsize, memsize);
     }
 
-    private void waitForTask(Connection c, Task task, long pollInterval, long timeout) throws XenAPIException, XmlRpcException {
+    protected void waitForTask(Connection c, Task task, long pollInterval, long timeout) throws XenAPIException, XmlRpcException {
         long beginTime = System.currentTimeMillis();
         while (task.getStatus(c) == Types.TaskStatusType.PENDING) {
             try {
@@ -3156,7 +3156,7 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         }
     }
 
-    private void checkForSuccess(Connection c, Task task) throws XenAPIException, XmlRpcException {
+    protected void checkForSuccess(Connection c, Task task) throws XenAPIException, XmlRpcException {
         if (task.getStatus(c) == Types.TaskStatusType.SUCCESS) {
             return;
         } else {
@@ -7346,6 +7346,10 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                     } else if (newState == State.Running) {
                         s_logger.warn("Ignoring vm " + vm + " because of a lag in stopping the vm. ");
                     }
+                } else if (oldState.second() == State.MigratingWithStorage) {
+                    if (newState == State.Running) {
+                        s_logger.warn("Ignoring vm " + vm + " because of a lag in migrating the vm with storage. ");
+                    }
                 } else if (oldState.second() != newState) {
                 	s_logger.debug("14. The VM " + vm + " is in " + newState + " state was " + oldState.second());
                     s_vms.put(_cluster, host_uuid, vm, newState);
@@ -7378,6 +7382,9 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                     s_vms.remove(_cluster, host_uuid, vm);
                 } else if (oldState == State.Migrating) {
                     s_logger.warn("Ignoring VM " + vm + " in migrating state.");
+                } else if (oldState == State.MigratingWithStorage) {
+                    s_logger.warn("VM missing " + vm + " old state migrating with storage so removing.");
+                    s_vms.remove(_cluster, host_uuid, vm);
                 } else {
                     State newState = State.Stopped;
                     s_logger.warn("The VM is now missing marking it as Stopped " + vm);

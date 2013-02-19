@@ -167,20 +167,67 @@ public class FirstFitAllocator implements HostAllocator {
         return allocateTo(plan, offering, template, avoid, clusterHosts, returnUpTo, considerReservedCapacity, account);
     }
 
-    protected List<Host> allocateTo(DeploymentPlan plan, ServiceOffering offering, VMTemplateVO template, ExcludeList avoid, List<HostVO> hosts, int returnUpTo, boolean considerReservedCapacity, Account account) {
+    @Override
+    public List<Host> allocateTo(VirtualMachineProfile<? extends VirtualMachine> vmProfile, DeploymentPlan plan,
+            Type type, ExcludeList avoid, List<HostVO> hosts, int returnUpTo, boolean considerReservedCapacity) {
+        long dcId = plan.getDataCenterId();
+        Long podId = plan.getPodId();
+        Long clusterId = plan.getClusterId();
+        ServiceOffering offering = vmProfile.getServiceOffering();
+        VMTemplateVO template = (VMTemplateVO)vmProfile.getTemplate();
+        Account account = vmProfile.getOwner();
+        List<Host> suitableHosts = new ArrayList<Host>();
+
+        if (type == Host.Type.Storage) {
+            // FirstFitAllocator should be used for user VMs only since it won't care whether the host is capable of
+            // routing or not.
+            return suitableHosts;
+        }
+
+        String hostTagOnOffering = offering.getHostTag();
+        String hostTagOnTemplate = template.getTemplateTag();
+        boolean hasSvcOfferingTag = hostTagOnOffering != null ? true : false;
+        boolean hasTemplateTag = hostTagOnTemplate != null ? true : false;
+
+        String haVmTag = (String)vmProfile.getParameter(VirtualMachineProfile.Param.HaTag);
+        if (haVmTag != null) {
+            hosts.retainAll(_hostDao.listByHostTag(type, clusterId, podId, dcId, haVmTag));
+        } else {
+            if (hostTagOnOffering == null && hostTagOnTemplate == null){
+                hosts.retainAll(_resourceMgr.listAllUpAndEnabledNonHAHosts(type, clusterId, podId, dcId));
+            } else {
+                if (hasSvcOfferingTag) {
+                    hosts.retainAll(_hostDao.listByHostTag(type, clusterId, podId, dcId, hostTagOnOffering));
+                }
+
+                if (hasTemplateTag) {
+                    hosts.retainAll(_hostDao.listByHostTag(type, clusterId, podId, dcId, hostTagOnTemplate));
+                }
+            }
+        }
+
+        if (!hosts.isEmpty()) {
+            suitableHosts = allocateTo(plan, offering, template, avoid, hosts, returnUpTo, considerReservedCapacity, account);
+        }
+
+        return suitableHosts;
+    }
+
+    protected List<Host> allocateTo(DeploymentPlan plan, ServiceOffering offering, VMTemplateVO template,
+            ExcludeList avoid, List<HostVO> hosts, int returnUpTo, boolean considerReservedCapacity, Account account) {
         if (_allocationAlgorithm.equals("random") || _allocationAlgorithm.equals("userconcentratedpod_random")) {
-        	// Shuffle this so that we don't check the hosts in the same order.
+            // Shuffle this so that we don't check the hosts in the same order.
             Collections.shuffle(hosts);
-        }else if(_allocationAlgorithm.equals("userdispersing")){
+        } else if(_allocationAlgorithm.equals("userdispersing")){
             hosts = reorderHostsByNumberOfVms(plan, hosts, account);
         }
-    	
-    	if (s_logger.isDebugEnabled()) {
+
+        if (s_logger.isDebugEnabled()) {
             s_logger.debug("FirstFitAllocator has " + hosts.size() + " hosts to check for allocation: "+hosts);
         }
-        
-        // We will try to reorder the host lists such that we give priority to hosts that have
-        // the minimums to support a VM's requirements
+
+        // We will try to reorder the host lists such that we give priority to hosts that have the minimums to support
+        // a VM's requirements.
         hosts = prioritizeHosts(template, hosts);
 
         if (s_logger.isDebugEnabled()) {
@@ -190,33 +237,36 @@ public class FirstFitAllocator implements HostAllocator {
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Looking for speed=" + (offering.getCpu() * offering.getSpeed()) + "Mhz, Ram=" + offering.getRamSize());
         }
-        
-        List<Host> suitableHosts = new ArrayList<Host>();
 
+        List<Host> suitableHosts = new ArrayList<Host>();
         for (HostVO host : hosts) {
-        	if(suitableHosts.size() == returnUpTo){
-        		break;
-        	}
+            if(suitableHosts.size() == returnUpTo){
+                break;
+            }
+
             if (avoid.shouldAvoid(host)) {
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("Host name: " + host.getName() + ", hostId: "+ host.getId() +" is in avoid set, skipping this and trying other available hosts");
+                    s_logger.debug("Host name: " + host.getName() + ", hostId: "+ host.getId() +" is in avoid set," +
+                            " skipping this and trying other available hosts");
                 }
                 continue;
             }
-                        
+
             //find number of guest VMs occupying capacity on this host.
-            if (_capacityMgr.checkIfHostReachMaxGuestLimit(host)){
+            if (_capacityMgr.checkIfHostReachMaxGuestLimit(host)) {
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("Host name: " + host.getName() + ", hostId: "+ host.getId() +" already has max Running VMs(count includes system VMs), skipping this and trying other available hosts");
+                    s_logger.debug("Host name: " + host.getName() + ", hostId: "+ host.getId() +" already has max " +
+                            "Running VMs(count includes system VMs), skipping this and trying other available hosts");
                 }
                 continue;
             }
 
             boolean numCpusGood = host.getCpus().intValue() >= offering.getCpu();
             boolean cpuFreqGood = host.getSpeed().intValue() >= offering.getSpeed();
-    		int cpu_requested = offering.getCpu() * offering.getSpeed();
-    		long ram_requested = offering.getRamSize() * 1024L * 1024L;	
-    		boolean hostHasCapacity = _capacityMgr.checkIfHostHasCapacity(host.getId(), cpu_requested, ram_requested, false, _factor, considerReservedCapacity);
+            int cpu_requested = offering.getCpu() * offering.getSpeed();
+            long ram_requested = offering.getRamSize() * 1024L * 1024L;	
+            boolean hostHasCapacity = _capacityMgr.checkIfHostHasCapacity(host.getId(), cpu_requested, ram_requested,
+                    false, _factor, considerReservedCapacity);
 
             if (numCpusGood && cpuFreqGood && hostHasCapacity) {
                 if (s_logger.isDebugEnabled()) {
@@ -225,15 +275,16 @@ public class FirstFitAllocator implements HostAllocator {
                 suitableHosts.add(host);
             } else {
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("Not using host " + host.getId() + "; numCpusGood: " + numCpusGood + "; cpuFreqGood: " + cpuFreqGood + ", host has capacity?" + hostHasCapacity);
+                    s_logger.debug("Not using host " + host.getId() + "; numCpusGood: " + numCpusGood +
+                            "; cpuFreqGood: " + cpuFreqGood + ", host has capacity?" + hostHasCapacity);
                 }
             }
         }
-        
+
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Host Allocator returning "+suitableHosts.size() +" suitable hosts");
         }
-        
+
         return suitableHosts;
     }
 

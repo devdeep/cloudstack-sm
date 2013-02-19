@@ -26,6 +26,7 @@ import com.cloud.agent.manager.allocator.HostAllocator;
 import com.cloud.deploy.DeploymentPlan;
 import com.cloud.deploy.DeploymentPlanner.ExcludeList;
 import com.cloud.host.Host;
+import com.cloud.host.HostVO;
 import com.cloud.host.Host.Type;
 import com.cloud.host.dao.HostDao;
 import com.cloud.offering.ServiceOffering;
@@ -46,7 +47,13 @@ public class TestingAllocator implements HostAllocator {
             ExcludeList avoid, int returnUpTo) {
         return allocateTo(vmProfile, plan, type, avoid, returnUpTo, true);
     }
-    
+
+    @Override
+    public List<Host> allocateTo(VirtualMachineProfile<? extends VirtualMachine> vmProfile, DeploymentPlan plan, Type type,
+            ExcludeList avoid, List<HostVO> hosts, int returnUpTo, boolean considerReservedCapacity) {
+        return allocateTo(vmProfile, plan, type, avoid, returnUpTo, considerReservedCapacity);
+    }
+
     @Override
     public List<Host> allocateTo(VirtualMachineProfile<? extends VirtualMachine> vmProfile, DeploymentPlan plan, Type type,
 			ExcludeList avoid, int returnUpTo, boolean considerReservedCapacity) {
