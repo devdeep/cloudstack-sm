@@ -19,6 +19,30 @@ package com.cloud.storage;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.*;
 import com.cloud.agent.api.storage.*;
+import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.BackupSnapshotCommand;
+import com.cloud.agent.api.CleanupSnapshotBackupCommand;
+import com.cloud.agent.api.Command;
+import com.cloud.agent.api.CreateStoragePoolCommand;
+import com.cloud.agent.api.CreateVolumeFromSnapshotAnswer;
+import com.cloud.agent.api.CreateVolumeFromSnapshotCommand;
+import com.cloud.agent.api.DeleteStoragePoolCommand;
+import com.cloud.agent.api.ManageSnapshotCommand;
+import com.cloud.agent.api.ModifyStoragePoolAnswer;
+import com.cloud.agent.api.ModifyStoragePoolCommand;
+import com.cloud.agent.api.PrepareForMigrationAnswer;
+import com.cloud.agent.api.UpgradeSnapshotCommand;
+import com.cloud.agent.api.storage.CopyVolumeAnswer;
+import com.cloud.agent.api.storage.CopyVolumeCommand;
+import com.cloud.agent.api.storage.MigrateVolumeAnswer;
+import com.cloud.agent.api.storage.MigrateVolumeCommand;
+import com.cloud.agent.api.storage.CreateAnswer;
+import com.cloud.agent.api.storage.CreateCommand;
+import com.cloud.agent.api.storage.DeleteTemplateCommand;
+import com.cloud.agent.api.storage.DeleteVolumeCommand;
+import com.cloud.agent.api.storage.DestroyCommand;
+import com.cloud.agent.api.storage.ResizeVolumeCommand;
+import com.cloud.agent.api.storage.ResizeVolumeAnswer;
 import com.cloud.agent.api.to.StorageFilerTO;
 import com.cloud.agent.api.to.VolumeTO;
 import com.cloud.agent.manager.Commands;
@@ -58,6 +82,8 @@ import com.cloud.host.HostVO;
 import com.cloud.host.Status;
 import com.cloud.host.dao.HostDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.hypervisor.dao.HypervisorCapabilitiesDao;
+import com.cloud.hypervisor.HypervisorCapabilitiesVO;
 import com.cloud.hypervisor.HypervisorGuruManager;
 import com.cloud.network.NetworkModel;
 import com.cloud.offering.ServiceOffering;
@@ -158,6 +184,8 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
     protected VolumeDao _volsDao;
     @Inject
     protected HostDao _hostDao;
+    @Inject
+    protected HypervisorCapabilitiesDao _hypervisorCapabilitiesDao;
     @Inject
     protected ConsoleProxyDao _consoleProxyDao;
     @Inject
@@ -2042,7 +2070,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
         }
 
         /* Only works for KVM/Xen for now */
-        if(_volsDao.getHypervisorType(volume.getId()) != HypervisorType.KVM 
+        if(_volsDao.getHypervisorType(volume.getId()) != HypervisorType.KVM
            && _volsDao.getHypervisorType(volume.getId()) != HypervisorType.XenServer){
             throw new InvalidParameterValueException("Cloudstack currently only supports volumes marked as KVM or XenServer hypervisor for resize");
         }
@@ -2091,7 +2119,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
             } else {
                 _configMgr.checkDiskOfferingAccess(UserContext.current().getCaller(), newDiskOffering);
             }
- 
+
             if (newDiskOffering.isCustomized()) {
                 newSize = cmd.getSize();
 
@@ -2121,15 +2149,15 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
         StoragePool pool = _storagePoolDao.findById(volume.getPoolId());
         long currentSize = volume.getSize();
 
-        /* lets make certain they (think they) know what they're doing if they 
+        /* lets make certain they (think they) know what they're doing if they
         want to shrink, by forcing them to provide the shrinkok parameter. This will
         be checked again at the hypervisor level where we can see the actual disk size */
         if (currentSize > newSize && !shrinkOk) {
-            throw new InvalidParameterValueException("Going from existing size of " + currentSize + " to size of " 
+            throw new InvalidParameterValueException("Going from existing size of " + currentSize + " to size of "
                       + newSize + " would shrink the volume, need to sign off by supplying the shrinkok parameter with value of true");
         }
 
-        /* get a list of hosts to send the commands to, try the system the 
+        /* get a list of hosts to send the commands to, try the system the
         associated vm is running on first, then the last known place it ran.
         If not attached to a userVm, we pass 'none' and resizevolume.sh is
         ok with that since it only needs the vm name to live resize */
@@ -2157,12 +2185,12 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
                     throw new CloudRuntimeException("Unable to change volume state for resize: " + etrans.toString());
             }
 
-            ResizeVolumeCommand resizeCmd = new ResizeVolumeCommand(volume.getPath(), new StorageFilerTO(pool), 
+            ResizeVolumeCommand resizeCmd = new ResizeVolumeCommand(volume.getPath(), new StorageFilerTO(pool),
                                                     currentSize, newSize, shrinkOk, instanceName);
             ResizeVolumeAnswer answer = (ResizeVolumeAnswer) sendToPool(pool, hosts, resizeCmd);
 
-            /* need to fetch/store new volume size in database. This value comes from 
-            hypervisor rather than trusting that a success means we have a volume of the 
+            /* need to fetch/store new volume size in database. This value comes from
+            hypervisor rather than trusting that a success means we have a volume of the
             size we requested */
             if (answer != null && answer.getResult()) {
                 long finalSize = answer.getNewSize();
@@ -2194,7 +2222,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
                 } catch (NoTransitionException etrans) {
                     throw new CloudRuntimeException("Failed to change volume state: " + etrans.toString());
                 }
-            } 
+            }
         }
         return null;
     }
@@ -3161,7 +3189,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
 
     @DB
     @Override
-    public Volume migrateVolume(Long volumeId, Long storagePoolId) throws ConcurrentOperationException {
+    public Volume migrateVolume(Long volumeId, Long storagePoolId, boolean allowliveMigrate) throws ConcurrentOperationException {
         VolumeVO vol = _volsDao.findById(volumeId);
         if (vol == null) {
             throw new InvalidParameterValueException("Failed to find the volume id: " + volumeId);
@@ -3171,8 +3199,39 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
             throw new InvalidParameterValueException("Volume must be in ready state");
         }
 
-        if (vol.getInstanceId() != null) {
-            throw new InvalidParameterValueException("Volume needs to be dettached from VM");
+        boolean liveMigrateVolumes = false;
+        Long instanceId = vol.getInstanceId();
+        VMInstanceVO vm = null;
+        if (instanceId != null) {
+            vm = _vmInstanceDao.findById(instanceId);
+        }
+
+        if (vm != null && vm.getState() == State.Running) {
+            // Check if the underlying hypervisor supports storage motion.
+            Long hostId = vm.getHostId();
+            if (hostId != null) {
+                HostVO host = _hostDao.findById(hostId);
+                HypervisorCapabilitiesVO capabilities = null;
+                if (host != null) {
+                    capabilities = _hypervisorCapabilitiesDao.findByHypervisorTypeAndVersion(host.getHypervisorType(),
+                            host.getHypervisorVersion());
+                }
+
+                if (capabilities != null) {
+                    liveMigrateVolumes = capabilities.isStorageMotionSupported();
+                }
+            }
+        }
+
+        // If the disk is not attached to any VM then it can be moved. Otherwise, it needs to be attached to a vm
+        // running on a hypervisor that supports storage motion so that it be be migrated.
+        if (instanceId != null && !liveMigrateVolumes) {
+            throw new InvalidParameterValueException("Volume needs to be detached from VM");
+        }
+
+        if (liveMigrateVolumes && !allowliveMigrate) {
+            throw new InvalidParameterValueException("The volume " + vol + "is attached to a vm and for migrating it " +
+                    "the parameter livemigrate should be specified");
         }
 
         StoragePool destPool = _storagePoolDao.findById(storagePoolId);
@@ -3187,7 +3246,11 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
         List<Volume> vols = new ArrayList<Volume>();
         vols.add(vol);
 
-        migrateVolumes(vols, destPool);
+        if (liveMigrateVolumes) {
+            liveMigrateVolumes(vols, destPool);
+        } else {
+            migrateVolumes(vols, destPool);
+        }
         return vol;
     }
 
@@ -3219,10 +3282,10 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
             checkPointTaskId = _checkPointMgr.pushCheckPoint(new StorageMigrationCleanupMaid(StorageMigrationCleanupMaid.StorageMigrationState.MIGRATING, volIds));
             transitResult = true;
         } finally {
-            if (!transitResult) {
-                txn.rollback();
-            } else {
+            if (transitResult) {
                 txn.commit();
+            } else {
+                txn.rollback();
             }
         }
 
@@ -3305,10 +3368,10 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
 
                     }
                 } finally {
-                    if (!transitResult) {
-                        txn.rollback();
-                    } else {
+                    if (transitResult) {
                         txn.commit();
+                    } else {
+                        txn.rollback();
                     }
                 }
 
@@ -3324,6 +3387,117 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
             }
         }
         return true;
+    }
+
+    public void liveMigrateVolumes(List<Volume> volumes, StoragePool destPool) throws ConcurrentOperationException {
+        // Migrate volumes one at a time.
+        for (Volume volume : volumes) {
+            liveMigrateOneVolume(volume, destPool);
+        }
+    }
+
+    @DB
+    public void liveMigrateOneVolume(Volume volume, StoragePool destPool) throws ConcurrentOperationException {
+        Transaction txn = Transaction.currentTxn();
+        txn.start();
+
+        boolean transitResult = false;
+        long checkPointTaskId = -1;
+        try {
+            List<Long> volIds = new ArrayList<Long>();
+            if (!_snapshotMgr.canOperateOnVolume((VolumeVO) volume)) {
+                throw new CloudRuntimeException("There are snapshots creating on this volume, can not move this volume");
+            }
+
+            try {
+                if (!stateTransitTo(volume, Volume.Event.MigrationRequested)) {
+                    throw new ConcurrentOperationException("Failed to transit volume state");
+                }
+            } catch (NoTransitionException e) {
+                s_logger.debug("Failed to set state into migrate: " + e.toString());
+                throw new CloudRuntimeException("Failed to set state into migrate: " + e.toString());
+            }
+            volIds.add(volume.getId());
+
+            checkPointTaskId = _checkPointMgr.pushCheckPoint(new StorageMigrationCleanupMaid(
+                    StorageMigrationCleanupMaid.StorageMigrationState.MIGRATING, volIds));
+            transitResult = true;
+        } finally {
+            if (!transitResult) {
+                txn.rollback();
+            } else {
+                txn.commit();
+            }
+        }
+
+        // At this stage, nobody can modify volumes. Send the migratevolume command.
+        MigrateVolumeAnswer answer = null;
+        try {
+            Long instanceId = volume.getInstanceId();
+            VMInstanceVO vmInstance = null;
+            if (instanceId != null) {
+                vmInstance = _vmInstanceDao.findById(instanceId);
+            }
+
+            Long hostId = null;
+            if (vmInstance != null) {
+                hostId = vmInstance.getHostId();
+            }
+
+            try {
+                if (hostId != null) {
+                    MigrateVolumeCommand command = new MigrateVolumeCommand(volume.getId(), volume.getPath(), destPool);
+                    answer = (MigrateVolumeAnswer) _agentMgr.send(hostId, command);
+                }
+            } catch (OperationTimedoutException e) {
+                s_logger.error("Operation timed out on storage motion for volume " + volume, e);
+                throw new CloudRuntimeException("Failed to live migrate volume " + volume + " to storage pool " +
+                        destPool, e);
+            } catch (AgentUnavailableException e) {
+                s_logger.error("Agent unavailable exception while doing storage motion for volume " + volume, e);
+                throw new CloudRuntimeException("Failed to live migrate volume " + volume + " to storage pool " +
+                        destPool, e);
+            }
+        } finally {
+            if (answer != null && answer.getResult()) {
+                txn = Transaction.currentTxn();
+                txn.start();
+
+                transitResult = false;
+                try {
+                    // Update the db with details of the new location of the volume.
+                    VolumeVO volumeVo = (VolumeVO) volume;
+                    Long oldPoolId = volume.getPoolId();
+                    volumeVo.setPath(answer.getVolumePath());
+                    volumeVo.setFolder(destPool.getPath());
+                    volumeVo.setPodId(destPool.getPodId());
+                    volumeVo.setPoolId(destPool.getId());
+                    volumeVo.setLastPoolId(oldPoolId);
+                    try {
+                        stateTransitTo(volume, Volume.Event.OperationSucceeded);
+                    } catch (NoTransitionException e) {
+                        s_logger.debug("Failed to change volume state: " + e.toString());
+                        throw new CloudRuntimeException("Failed to change volume state: " + e.toString());
+                    }
+
+                    transitResult = true;
+                    _checkPointMgr.popCheckPoint(checkPointTaskId);
+                } finally {
+                    if (!transitResult) {
+                        txn.rollback();
+                    } else {
+                        txn.commit();
+                    }
+                }
+            } else {
+                try {
+                    stateTransitTo(volume, Volume.Event.OperationFailed);
+                } catch (NoTransitionException e) {
+                    s_logger.debug("Failed to change volume state: " + e.toString());
+                }
+                _checkPointMgr.popCheckPoint(checkPointTaskId);
+            }
+        }
     }
 
     @Override

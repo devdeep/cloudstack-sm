@@ -674,6 +674,51 @@ public class XenServerConnectionPool {
         }
         return mConn;
     }
+
+    public XenServerConnection getCrossPoolConnection(String ipAddress, String username, Queue<String> password) {
+        Connection sConn = null;
+        XenServerConnection mConn = null;
+        String masterIp = null;
+
+        try {
+            try {
+                if (s_logger.isDebugEnabled()) {
+                    s_logger.debug("Logging on as the slave to " + ipAddress);
+                }
+                sConn = new Connection(getURL(ipAddress), 10);
+                slaveLocalLoginWithPassword(sConn, username, password);
+            } catch (Exception e){
+                String msg = "Unable to create slave connection to host(" + ipAddress +") due to " + e.toString();
+                if (s_logger.isDebugEnabled()) {
+                    s_logger.debug(msg);
+                } 
+                throw new CloudRuntimeException(msg, e);
+            }
+
+            Pool.Record pr = null;
+            try {
+                pr = getPoolRecord(sConn);
+            } catch (Exception e) {
+                throw new CloudRuntimeException("", e);
+            }
+
+            try {
+                masterIp = pr.master.getAddress(sConn);
+                mConn = new XenServerConnection(getURL(masterIp), masterIp, username, password, _retries, _interval, 5);
+                loginWithPassword(mConn, username, password, APIVersion.latest().toString());
+                return mConn;
+            } catch (Exception e) {
+                String msg = "Unable to logon in " + masterIp + " as master in pool";
+                if (s_logger.isDebugEnabled()) {
+                    s_logger.debug(msg);                           
+                }
+                throw new CloudRuntimeException(msg, e);
+            }
+        } finally {
+            localLogout(sConn);
+            sConn = null;
+        }
+    }
     
 
     protected Session slaveLocalLoginWithPassword(Connection conn, String username, Queue<String> password) throws

@@ -119,7 +119,7 @@ public interface StorageService{
 
     public StoragePool getStoragePool(long id);
 
-    Volume migrateVolume(Long volumeId, Long storagePoolId) throws ConcurrentOperationException;
+    Volume migrateVolume(Long volumeId, Long storagePoolId, boolean liveMigrate) throws ConcurrentOperationException;
 
 
     /**

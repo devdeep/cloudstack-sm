@@ -16,35 +16,24 @@
 // under the License.
 package com.cloud.agent.api;
 
-import com.cloud.agent.api.to.VirtualMachineTO;
+public class MigrateWithStorageAnswer extends Answer {
 
-public class PrepareForMigrationCommand extends Command {
-    VirtualMachineTO vm;
-    boolean isStorage;
-
-    protected PrepareForMigrationCommand() {
+    protected MigrateWithStorageAnswer() {
     }
 
-    public PrepareForMigrationCommand(VirtualMachineTO vm) {
-        this.vm = vm;
-        this.isStorage = false;
+    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, boolean result, String detail) {
+        super(cmd, result, detail);
     }
 
-    public PrepareForMigrationCommand(VirtualMachineTO vm, boolean isStorage) {
-        this.vm = vm;
-        this.isStorage = isStorage;
+    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, String detail) {
+        super(cmd, false, detail);
     }
 
-    public VirtualMachineTO getVirtualMachine() {
-    	return vm;
-    }
-    
-    public boolean isStorage() {
-        return isStorage;
+    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, Exception ex) {
+        super(cmd, ex);
     }
 
-    @Override
-    public boolean executeInSequence() {
-        return true;
+    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd) {
+        super(cmd, true, null);
     }
 }

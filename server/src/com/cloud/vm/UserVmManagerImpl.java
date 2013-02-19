@@ -3608,15 +3608,28 @@ public class UserVmManagerImpl implements UserVmManager, UserVmService, Manager 
             throw new InvalidParameterValueException("Unsupported Hypervisor Type for VM migration, we support XenServer/VMware/KVM only");
         }
 
-        if (isVMUsingLocalStorage(vm)) {
-            if (s_logger.isDebugEnabled()) {
-                s_logger.debug(vm + " is using Local Storage, cannot migrate this VM.");
-            }
-            throw new InvalidParameterValueException("Unsupported operation, VM uses Local storage, cannot migrate");
+        // Check if storage motion is required.
+        long srcHostId = vm.getHostId();
+        Host srcHost = _resourceMgr.getHost(srcHostId);
+        boolean localStorageUsed = isVMUsingLocalStorage(vm);
+        boolean requiresMigrationWithStorage = false;
+        if (localStorageUsed || destinationHost.getClusterId() != srcHost.getClusterId()) {
+            requiresMigrationWithStorage = true;
+        }
+
+        // Migration with storage is only supported on XenServer 6.1+.
+        // TODO: add to capabilities table the ability to do storage migration.
+        if (requiresMigrationWithStorage) {
+            
+        }
+
+        // Migration with storage is only enabled within a pod.
+        if (destinationHost.getPodId() != srcHost.getPodId()) {
+            throw new InvalidParameterValueException("Unsupported operation, the source and destination host don't " +
+                        "belong to the same pod.");
         }
 
         //check if migrating to same host
-        long srcHostId = vm.getHostId();
         if(destinationHost.getId() == srcHostId){
             throw new InvalidParameterValueException("Cannot migrate VM, VM is already presnt on this host, please specify valid destination host to migrate the VM");
         }
@@ -3641,7 +3654,12 @@ public class UserVmManagerImpl implements UserVmManager, UserVmService, Manager 
             throw new VirtualMachineMigrationException("Destination host, hostId: "+ destinationHost.getId() +" already has max Running VMs(count includes system VMs), cannot migrate to this host");
         }
 
-        VMInstanceVO migratedVm = _itMgr.migrate(vm, srcHostId, dest);
+        VMInstanceVO migratedVm;
+        if (requiresMigrationWithStorage) {
+            migratedVm = _itMgr.migrateWithStorage(vm, srcHostId, dest);
+        } else {
+            migratedVm = _itMgr.migrate(vm, srcHostId, dest);
+        }
         return migratedVm;
     }
 

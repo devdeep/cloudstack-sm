@@ -139,6 +139,13 @@ public class MockVirtualMachineManagerImpl implements VirtualMachineManager {
     }
 
     @Override
+    public <T extends VMInstanceVO> T migrateWithStorage(T vm, long srcHostId, DeployDestination dest) throws ResourceUnavailableException, ConcurrentOperationException, ManagementServerException,
+    VirtualMachineMigrationException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
     public VMInstanceVO findByIdAndType(Type type, long vmId) {
         // TODO Auto-generated method stub
         return null;
