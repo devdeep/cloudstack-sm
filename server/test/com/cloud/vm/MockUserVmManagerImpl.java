@@ -410,6 +410,14 @@ public class MockUserVmManagerImpl implements UserVmManager, UserVmService, Mana
         return null;
     }
 
+    @Override
+    public VirtualMachine migrateVirtualMachineWithVolume(Long vmId, Host destinationHost, Map<String, String> volumeToPool)
+            throws ResourceUnavailableException, ConcurrentOperationException, ManagementServerException,
+            VirtualMachineMigrationException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
 	@Override
 	public UserVm moveVMToUser(AssignVMCmd moveUserVMCmd)
 			throws ResourceAllocationException, ConcurrentOperationException,

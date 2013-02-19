@@ -16,31 +16,33 @@
 // under the License.
 package com.cloud.agent.api;
 
+import java.util.Map;
 import com.cloud.agent.api.to.VirtualMachineTO;
+import com.cloud.agent.api.to.VolumeTO;
+import com.cloud.agent.api.to.StorageFilerTO;
 
-public class PrepareForMigrationCommand extends Command {
+public class MigrateWithStorageCommand extends Command {
     VirtualMachineTO vm;
-    boolean isStorage;
+    boolean isWindows;
+    Map<VolumeTO, StorageFilerTO> volumeToFiler;
 
-    protected PrepareForMigrationCommand() {
+    public MigrateWithStorageCommand(VirtualMachineTO vm, boolean isWindows,
+            Map<VolumeTO, StorageFilerTO> volumeToFiler) {
+        this.isWindows = isWindows;
+        this.vm = vm;
+        this.volumeToFiler = volumeToFiler;
     }
 
-    public PrepareForMigrationCommand(VirtualMachineTO vm) {
-        this.vm = vm;
-        this.isStorage = false;
-    }
-
-    public PrepareForMigrationCommand(VirtualMachineTO vm, boolean isStorage) {
-        this.vm = vm;
-        this.isStorage = isStorage;
+    public boolean isWindows() {
+        return isWindows;
     }
 
     public VirtualMachineTO getVirtualMachine() {
-    	return vm;
+        return vm;
     }
-    
-    public boolean isStorage() {
-        return isStorage;
+
+    public Map<VolumeTO, StorageFilerTO> getVolumeToFiler() {
+        return volumeToFiler;
     }
 
     @Override

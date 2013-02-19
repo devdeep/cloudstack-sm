@@ -16,31 +16,8 @@
 // under the License.
 package com.cloud.agent.api;
 
-import com.cloud.agent.api.to.VirtualMachineTO;
-
-public class PrepareForMigrationCommand extends Command {
-    VirtualMachineTO vm;
-    boolean isStorage;
-
-    protected PrepareForMigrationCommand() {
-    }
-
-    public PrepareForMigrationCommand(VirtualMachineTO vm) {
-        this.vm = vm;
-        this.isStorage = false;
-    }
-
-    public PrepareForMigrationCommand(VirtualMachineTO vm, boolean isStorage) {
-        this.vm = vm;
-        this.isStorage = isStorage;
-    }
-
-    public VirtualMachineTO getVirtualMachine() {
-    	return vm;
-    }
-    
-    public boolean isStorage() {
-        return isStorage;
+public class MigrateWithStorageReceiveCommand extends Command {
+    public MigrateWithStorageReceiveCommand() {
     }
 
     @Override

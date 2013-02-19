@@ -59,16 +59,21 @@ public class HypervisorCapabilitiesVO implements HypervisorCapabilities {
     @Column(name="max_data_volumes_limit")
     private Integer maxDataVolumesLimit;
 
+    @Column(name="storage_motion_supported")
+    private boolean storageMotionSupported;
+
     protected HypervisorCapabilitiesVO() {
     	this.uuid = UUID.randomUUID().toString();
     }
 
-    public HypervisorCapabilitiesVO(HypervisorType hypervisorType, String hypervisorVersion, Long maxGuestsLimit, boolean securityGroupEnabled) {
+    public HypervisorCapabilitiesVO(HypervisorType hypervisorType, String hypervisorVersion, Long maxGuestsLimit,
+            boolean securityGroupEnabled, boolean storageMotionSupported) {
         this.hypervisorType = hypervisorType;
         this.hypervisorVersion = hypervisorVersion;
         this.maxGuestsLimit = maxGuestsLimit;
         this.securityGroupEnabled = securityGroupEnabled;
-    	this.uuid = UUID.randomUUID().toString();
+        this.uuid = UUID.randomUUID().toString();
+        this.storageMotionSupported = storageMotionSupported;
     }
 
     /**
@@ -129,6 +134,20 @@ public class HypervisorCapabilitiesVO implements HypervisorCapabilities {
         return maxGuestsLimit;
     }
 
+    /**
+     * @param storageMotionSupported
+     */
+    public void setStorageMotionSupported(boolean storageMotionSupported) {
+        this.storageMotionSupported = storageMotionSupported;
+    }
+
+    /**
+     * @return if storage motion is supported
+     */
+    @Override
+    public boolean isStorageMotionSupported() {
+        return storageMotionSupported;
+    }
 
     public long getId() {
         return id;

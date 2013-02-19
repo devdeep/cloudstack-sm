@@ -16,35 +16,30 @@
 // under the License.
 package com.cloud.agent.api;
 
+import java.util.Map;
 import com.cloud.agent.api.to.VirtualMachineTO;
 
-public class PrepareForMigrationCommand extends Command {
+public class MigrateWithStorageSendCommand extends Command {
     VirtualMachineTO vm;
-    boolean isStorage;
+    Map<String, String> token;
+    boolean isWindows;
 
-    protected PrepareForMigrationCommand() {
-    }
-
-    public PrepareForMigrationCommand(VirtualMachineTO vm) {
+    public MigrateWithStorageSendCommand(VirtualMachineTO vm, Map<String, String> token, boolean isWindows) {
         this.vm = vm;
-        this.isStorage = false;
-    }
-
-    public PrepareForMigrationCommand(VirtualMachineTO vm, boolean isStorage) {
-        this.vm = vm;
-        this.isStorage = isStorage;
-    }
-
-    public VirtualMachineTO getVirtualMachine() {
-    	return vm;
-    }
-    
-    public boolean isStorage() {
-        return isStorage;
+        this.token = token;
+        this.isWindows = isWindows;
     }
 
     @Override
     public boolean executeInSequence() {
         return true;
+    }
+
+    public VirtualMachineTO getVirtualMachine() {
+        return vm;
+    }
+
+    public Map<String, String> getToken() {
+        return token;
     }
 }
