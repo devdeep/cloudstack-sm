@@ -106,6 +106,7 @@ import com.cloud.host.dao.HostDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.hypervisor.HypervisorGuruManager;
 import com.cloud.hypervisor.dao.HypervisorCapabilitiesDao;
+import com.cloud.hypervisor.HypervisorCapabilitiesVO;
 import com.cloud.network.NetworkModel;
 import com.cloud.org.Grouping;
 import com.cloud.resource.ResourceManager;
@@ -1971,9 +1972,39 @@ public class VolumeManagerImpl extends ManagerBase implements VolumeManager {
                     "Volume must be in ready state");
         }
 
-        if (vol.getInstanceId() != null) {
-            throw new InvalidParameterValueException(
-                    "Volume needs to be dettached from VM");
+        boolean liveMigrateVolume = false;
+        Long instanceId = vol.getInstanceId();
+        VMInstanceVO vm = null;
+        if (instanceId != null) {
+            vm = _vmInstanceDao.findById(instanceId);
+        }
+
+        if (vm != null && vm.getState() == State.Running) {
+            // Check if the underlying hypervisor supports storage motion.
+            Long hostId = vm.getHostId();
+            if (hostId != null) {
+                HostVO host = _hostDao.findById(hostId);
+                HypervisorCapabilitiesVO capabilities = null;
+                if (host != null) {
+                    capabilities = _hypervisorCapabilitiesDao.findByHypervisorTypeAndVersion(host.getHypervisorType(),
+                            host.getHypervisorVersion());
+                }
+
+                if (capabilities != null) {
+                    liveMigrateVolume = capabilities.isStorageMotionSupported();
+                }
+            }
+        }
+
+        // If the disk is not attached to any VM then it can be moved. Otherwise, it needs to be attached to a vm
+        // running on a hypervisor that supports storage motion so that it be be migrated.
+        if (instanceId != null && !liveMigrateVolume) {
+            throw new InvalidParameterValueException("Volume needs to be detached from VM");
+        }
+
+        if (liveMigrateVolume && !cmd.isLiveMigrate()) {
+            throw new InvalidParameterValueException("The volume " + vol + "is attached to a vm and for migrating it " +
+                    "the parameter livemigrate should be specified");
         }
 
         StoragePool destPool = (StoragePool)this.dataStoreMgr.getDataStore(storagePoolId, DataStoreRole.Primary);
@@ -1988,16 +2019,39 @@ public class VolumeManagerImpl extends ManagerBase implements VolumeManager {
                     "Migration of volume from local storage pool is not supported");
         }
 
-        Volume newVol = migrateVolume(vol, destPool);
+        Volume newVol = null;
+        if (liveMigrateVolume) {
+            newVol = liveMigrateVolume(vol, destPool);
+        } else {
+            newVol = migrateVolume(vol, destPool);
+        }
         return newVol;
     }
 
-    
-    
     @DB
     protected Volume migrateVolume(Volume volume, StoragePool destPool) {
         VolumeInfo vol = this.volFactory.getVolume(volume.getId());
         AsyncCallFuture<VolumeApiResult> future = this.volService.copyVolume(vol, (DataStore)destPool);
+        try {
+            VolumeApiResult result = future.get();
+            if (result.isFailed()) {
+                s_logger.debug("migrate volume failed:" + result.getResult());
+                return null;
+            }
+            return result.getVolume();
+        } catch (InterruptedException e) {
+            s_logger.debug("migrate volume failed", e);
+            return null;
+        } catch (ExecutionException e) {
+            s_logger.debug("migrate volume failed", e);
+            return null;
+        }
+    }
+
+    @DB
+    protected Volume liveMigrateVolume(Volume volume, StoragePool destPool) {
+        VolumeInfo vol = this.volFactory.getVolume(volume.getId());
+        AsyncCallFuture<VolumeApiResult> future = this.volService.migrateVolume(vol, (DataStore)destPool);
         try {
             VolumeApiResult result = future.get();
             if (result.isFailed()) {
