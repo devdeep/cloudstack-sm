@@ -20,6 +20,8 @@ package com.cloud.hypervisor.xen.resource;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.ejb.Local;
 
@@ -29,6 +31,21 @@ import com.cloud.resource.ServerResource;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.utils.script.Script;
 
+import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.Command;
+import com.cloud.agent.api.storage.MigrateVolumeAnswer;
+import com.cloud.agent.api.storage.MigrateVolumeCommand;
+import com.cloud.agent.api.to.StorageFilerTO;
+import com.xensource.xenapi.Connection;
+import com.xensource.xenapi.Host;
+import com.xensource.xenapi.Network;
+import com.xensource.xenapi.SR;
+import com.xensource.xenapi.Task;
+import com.xensource.xenapi.Types;
+import com.xensource.xenapi.VBD;
+import com.xensource.xenapi.VDI;
+import com.xensource.xenapi.VIF;
+import com.xensource.xenapi.VM;
 
 @Local(value=ServerResource.class)
 public class XenServer610Resource extends XenServer56FP1Resource {
@@ -54,5 +71,40 @@ public class XenServer610Resource extends XenServer56FP1Resource {
         File file = new File(patchfilePath);
         files.add(file);
         return files;
+    }
+
+    @Override
+    public Answer executeRequest(Command cmd) {
+        if (cmd instanceof MigrateVolumeCommand) {
+            return execute((MigrateVolumeCommand) cmd);
+        } else {
+            return super.executeRequest(cmd);
+        }
+    }
+
+    protected MigrateVolumeAnswer execute(MigrateVolumeCommand cmd) {
+        Connection connection = getConnection();
+        String volumeUUID = cmd.getVolumePath();
+        StorageFilerTO poolTO = cmd.getPool();
+
+        try {
+            SR destinationPool = getStorageRepository(connection, poolTO.getUuid());
+            VDI srcVolume = getVDIbyUuid(connection, volumeUUID);
+            Map<String, String> other = new HashMap<String, String>();
+            other.put("live", "true");
+
+            // Live migrate the vdi across pool.
+            Task task = srcVolume.poolMigrateAsync(connection, destinationPool, other);
+            long timeout = (_migratewait) * 1000L;
+            waitForTask(connection, task, 1000, timeout);
+            checkForSuccess(connection, task);
+            VDI dvdi = Types.toVDI(task, connection);
+
+            return new MigrateVolumeAnswer(cmd, true, null, dvdi.getUuid(connection));
+        } catch (Exception e) {
+            String msg = "Catch Exception " + e.getClass().getName() + " due to " + e.toString();
+            s_logger.error(msg, e);
+            return new MigrateVolumeAnswer(cmd, false, msg, null);
+        }
     }
 }
