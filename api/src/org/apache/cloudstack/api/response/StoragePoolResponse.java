@@ -80,7 +80,9 @@ public class StoragePoolResponse extends BaseResponse {
     @SerializedName(ApiConstants.STATE) @Param(description="the state of the storage pool")
     private StoragePoolStatus state;
 
-
+    @SerializedName("suitableformigration") @Param(description="true if this pool is suitable to migrate a volume," +
+            " false otherwise")
+    private Boolean suitableForMigration;
 
     @Override
     public String getObjectId() {
@@ -223,4 +225,7 @@ public class StoragePoolResponse extends BaseResponse {
         this.state = state;
     }
 
+    public void setSuitableForMigration(Boolean suitableForMigration) {
+        this.suitableForMigration = suitableForMigration;
+    }
 }

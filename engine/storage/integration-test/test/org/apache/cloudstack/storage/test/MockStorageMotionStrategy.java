@@ -20,6 +20,7 @@ package org.apache.cloudstack.storage.test;
 
 import org.apache.cloudstack.engine.subsystem.api.storage.CopyCommandResult;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataObject;
+import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
 import org.apache.cloudstack.framework.async.AsyncCompletionCallback;
 import org.apache.cloudstack.storage.motion.DataMotionStrategy;
 
@@ -32,6 +33,11 @@ public class MockStorageMotionStrategy implements DataMotionStrategy {
     }
 
     @Override
+    public boolean canHandle(DataObject srcData, DataStore destStore) {
+        return true;
+    }
+
+    @Override
     public Void copyAsync(DataObject srcData, DataObject destData,
             AsyncCompletionCallback<CopyCommandResult> callback) {
         CopyCommandResult result = new CopyCommandResult("something", null);
@@ -39,4 +45,11 @@ public class MockStorageMotionStrategy implements DataMotionStrategy {
         return null;
     }
 
+    @Override
+    public Void migrateAsync(DataObject srcData, DataStore destStore,
+            AsyncCompletionCallback<CopyCommandResult> callback) {
+        CopyCommandResult result = new CopyCommandResult("something", null);
+        callback.complete(result);
+        return null;
+    }
 }

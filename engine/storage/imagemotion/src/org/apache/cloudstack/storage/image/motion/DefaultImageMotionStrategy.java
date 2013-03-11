@@ -96,6 +96,11 @@ public class DefaultImageMotionStrategy implements ImageMotionStrategy {
     }
 
     @Override
+    public boolean canHandle(DataObject srcData, DataStore destStore) {
+        return false;
+    }
+
+    @Override
     public Void copyAsync(DataObject srcData, DataObject destData,
             AsyncCompletionCallback<CopyCommandResult> callback) {
         DataStore destStore = destData.getDataStore();
@@ -137,4 +142,12 @@ public class DefaultImageMotionStrategy implements ImageMotionStrategy {
         
     }
 
+    @Override
+    public Void migrateAsync(DataObject srcData, DataStore destStore,
+            AsyncCompletionCallback<CopyCommandResult> callback) {
+        CopyCommandResult result = new CopyCommandResult("", null);
+        result.setResult("not implemented");
+        callback.complete(result);
+        return null;
+    }
 }
