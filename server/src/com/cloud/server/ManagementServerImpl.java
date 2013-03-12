@@ -622,12 +622,14 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         Object resourceState = cmd.getResourceState();
         Object haHosts = cmd.getHaHost();
 
-        Pair<List<HostVO>, Integer> result = searchForServers(cmd.getStartIndex(), cmd.getPageSizeVal(), name, type, state, zoneId, pod, cluster, id, keyword, resourceState, haHosts);
+        Pair<List<HostVO>, Integer> result = searchForServers(cmd.getStartIndex(), cmd.getPageSizeVal(), name, type,
+                state, zoneId, pod, cluster, id, keyword, resourceState, haHosts, null, null);
         return new Pair<List<? extends Host>, Integer>(result.first(), result.second());
     }
 
     @Override
-    public Pair<Pair<List<? extends Host>, Integer>, List<? extends Host>> listHostsForMigrationOfVM(Long vmId, Long startIndex, Long pageSize) {
+    public Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>>
+            listHostsForMigrationOfVM(Long vmId, Long startIndex, Long pageSize) {
         // access check - only root admin can migrate VM
         Account caller = UserContext.current().getCaller();
         if (caller.getType() != Account.ACCOUNT_TYPE_ADMIN) {
@@ -660,15 +662,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             }
             throw new InvalidParameterValueException("Unsupported Hypervisor Type for VM migration, we support XenServer/VMware/KVM only");
         }
-        ServiceOfferingVO svcOffering = _offeringsDao.findById(vm.getServiceOfferingId());
-        if (svcOffering.getUseLocalStorage()) {
-            if (s_logger.isDebugEnabled()) {
-                s_logger.debug(vm + " is using Local Storage, cannot migrate this VM.");
-            }
-            throw new InvalidParameterValueException("Unsupported operation, VM uses Local storage, cannot migrate");
-        }
+
         long srcHostId = vm.getHostId();
-        // why is this not HostVO?
         Host srcHost = _hostDao.findById(srcHostId);
         if (srcHost == null) {
             if (s_logger.isDebugEnabled()) {
@@ -680,51 +675,132 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             ex.addProxyObject(vm, vmId, "vmId");
             throw ex;
         }
-        Long cluster = srcHost.getClusterId();
-        Type hostType = srcHost.getType();
-        if (s_logger.isDebugEnabled()) {
-            s_logger.debug("Searching for all hosts in cluster: " + cluster + " for migrating VM " + vm);
+
+        // Check if the vm can be migrated with storage.
+        boolean canMigrateWithStorage = false;
+        HypervisorCapabilitiesVO capabilities = _hypervisorCapabilitiesDao.findByHypervisorTypeAndVersion(
+                srcHost.getHypervisorType(), srcHost.getHypervisorVersion());
+        if (capabilities != null) {
+            canMigrateWithStorage = capabilities.isStorageMotionSupported();
         }
 
-        Pair<List<HostVO>, Integer> allHostsInClusterPair = searchForServers(startIndex, pageSize, null, hostType, null, null, null, cluster, null, null, null, null);
-
-        // filter out the current host
-        List<HostVO> allHostsInCluster = allHostsInClusterPair.first();
-        allHostsInCluster.remove(srcHost);
-        Pair<List<? extends Host>, Integer> otherHostsInCluster = new Pair<List <? extends Host>, Integer>(allHostsInCluster, new Integer(allHostsInClusterPair.second().intValue()-1));
-
-        if (s_logger.isDebugEnabled()) {
-            s_logger.debug("Other Hosts in this cluster: " + allHostsInCluster);
-        }
-
-        if (s_logger.isDebugEnabled()) {
-            s_logger.debug("Calling HostAllocators to search for hosts in cluster: " + cluster + " having enough capacity and suitable for migration");
-        }
-
-        List<Host> suitableHosts = new ArrayList<Host>();
-
+        // Check if the vm is using any disks on local storage.
         VirtualMachineProfile<VMInstanceVO> vmProfile = new VirtualMachineProfileImpl<VMInstanceVO>(vm);
+        List<VolumeVO> volumes = _volumeDao.findCreatedByInstance(vmProfile.getId());
+        boolean usesLocal = false;
+        for (VolumeVO volume : volumes) {
+            DiskOfferingVO diskOffering = _diskOfferingDao.findById(volume.getDiskOfferingId());
+            DiskProfile diskProfile = new DiskProfile(volume, diskOffering, vmProfile.getHypervisorType());
+            if (diskProfile.useLocalStorage()) {
+                usesLocal = true;
+                break;
+            }
+        }
 
-        DataCenterDeployment plan = new DataCenterDeployment(srcHost.getDataCenterId(), srcHost.getPodId(), srcHost.getClusterId(), null, null, null);
+        if (!canMigrateWithStorage && usesLocal) {
+            throw new InvalidParameterValueException("Unsupported operation, VM uses Local storage, cannot migrate");
+        }
+
+        Type hostType = srcHost.getType();
+        Pair<List<HostVO>, Integer> allHostsPair = null;
+        List<HostVO> allHosts = null;
+        Map<Host, Boolean> requiresStorageMotion = new HashMap<Host, Boolean>();
+        DataCenterDeployment plan = null;
+        if (canMigrateWithStorage) {
+            allHostsPair = searchForServers(startIndex, pageSize, null, hostType, null, srcHost.getDataCenterId(), null,
+                    null, null, null, null, null, srcHost.getHypervisorType(), srcHost.getHypervisorVersion());
+            allHosts = allHostsPair.first();
+            allHosts.remove(srcHost);
+
+            // Check if the host has storage pools for all the volumes of the vm to be migrated.
+            for (Host host : allHosts) {
+                Map<Volume, List<StoragePool>> volumePools = findSuitablePoolsForVolumes(vmProfile, host);
+                if (volumePools.isEmpty()) {
+                    allHosts.remove(host);
+                } else {
+                    if (host.getClusterId() != srcHost.getClusterId() || usesLocal) {
+                        requiresStorageMotion.put(host, true);
+                    }
+                }
+            }
+
+            plan = new DataCenterDeployment(srcHost.getDataCenterId(), null, null, null, null, null);
+        } else {
+            Long cluster = srcHost.getClusterId();
+            if (s_logger.isDebugEnabled()) {
+                s_logger.debug("Searching for all hosts in cluster " + cluster + " for migrating VM " + vm);
+            }
+            allHostsPair = searchForServers(startIndex, pageSize, null, hostType, null, null, null, cluster, null, null,
+                    null, null, null, null);
+            // Filter out the current host.
+            allHosts = allHostsPair.first();
+            allHosts.remove(srcHost);
+            plan = new DataCenterDeployment(srcHost.getDataCenterId(), srcHost.getPodId(), srcHost.getClusterId(),
+                    null, null, null);
+        }
+
+        Pair<List<? extends Host>, Integer> otherHosts = new Pair<List <? extends Host>, Integer>(allHosts,
+                new Integer(allHosts.size()));
+        List<Host> suitableHosts = new ArrayList<Host>();
         ExcludeList excludes = new ExcludeList();
         excludes.addHost(srcHostId);
-
         for (HostAllocator allocator : _hostAllocators) {
-            suitableHosts = allocator.allocateTo(vmProfile, plan, Host.Type.Routing, excludes, HostAllocator.RETURN_UPTO_ALL, false);
+            if  (canMigrateWithStorage) {
+                suitableHosts = allocator.allocateTo(vmProfile, plan, Host.Type.Routing, excludes, allHosts,
+                        HostAllocator.RETURN_UPTO_ALL, false);
+            } else {
+                suitableHosts = allocator.allocateTo(vmProfile, plan, Host.Type.Routing, excludes,
+                        HostAllocator.RETURN_UPTO_ALL, false);
+            }
+
             if (suitableHosts != null && !suitableHosts.isEmpty()) {
                 break;
             }
         }
 
-        if (suitableHosts.isEmpty()) {
-            s_logger.debug("No suitable hosts found");
-        } else {
-            if (s_logger.isDebugEnabled()) {
+        if (s_logger.isDebugEnabled()) {
+            if (suitableHosts.isEmpty()) {
+                s_logger.debug("No suitable hosts found");
+            } else {
                 s_logger.debug("Hosts having capacity and suitable for migration: " + suitableHosts);
             }
         }
 
-        return new Pair<Pair<List<? extends Host>, Integer>, List<? extends Host>>(otherHostsInCluster, suitableHosts);
+        return new Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>> (otherHosts,
+                suitableHosts, requiresStorageMotion);
+    }
+
+    private Map<Volume, List<StoragePool>> findSuitablePoolsForVolumes(VirtualMachineProfile<VMInstanceVO> vmProfile,
+            Host host) {
+        List<VolumeVO> volumes = _volumeDao.findCreatedByInstance(vmProfile.getId());
+        Map<Volume, List<StoragePool>> suitableVolumeStoragePools = new HashMap<Volume, List<StoragePool>>();
+
+        // For each volume find list of suitable storage pools by calling the allocators
+        for (VolumeVO volume : volumes) {
+            DiskOfferingVO diskOffering = _diskOfferingDao.findById(volume.getDiskOfferingId());
+            DiskProfile diskProfile = new DiskProfile(volume, diskOffering, vmProfile.getHypervisorType());
+            DataCenterDeployment plan = new DataCenterDeployment(host.getDataCenterId(), host.getPodId(),
+                    host.getClusterId(), host.getId(), null, null);
+            ExcludeList avoid = new ExcludeList();
+
+            boolean foundPools = false;
+            for (StoragePoolAllocator allocator : _storagePoolAllocators) {
+                List<StoragePool> poolList = allocator.allocateToPool(diskProfile, vmProfile, plan, avoid,
+                        StoragePoolAllocator.RETURN_UPTO_ALL);
+                if (poolList != null && !poolList.isEmpty()) {
+                    suitableVolumeStoragePools.put(volume, poolList);
+                    foundPools = true;
+                    break;
+                }
+            }
+
+            if (!foundPools) {
+                suitableVolumeStoragePools.clear();
+                break;
+            }
+        }
+
+        return suitableVolumeStoragePools;
     }
 
     @Override
@@ -836,7 +912,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     }
 
     private Pair<List<HostVO>, Integer> searchForServers(Long startIndex, Long pageSize, Object name, Object type, Object state, Object zone, Object pod, Object cluster, Object id, Object keyword,
-            Object resourceState, Object haHosts) {
+            Object resourceState, Object haHosts, Object hypervisorType, Object hypervisorVersion) {
         Filter searchFilter = new Filter(HostVO.class, "id", Boolean.TRUE, startIndex, pageSize);
 
         SearchBuilder<HostVO> sb = _hostDao.createSearchBuilder();
@@ -848,6 +924,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         sb.and("podId", sb.entity().getPodId(), SearchCriteria.Op.EQ);
         sb.and("clusterId", sb.entity().getClusterId(), SearchCriteria.Op.EQ);
         sb.and("resourceState", sb.entity().getResourceState(), SearchCriteria.Op.EQ);
+        sb.and("hypervisorType", sb.entity().getHypervisorType(), SearchCriteria.Op.EQ);
+        sb.and("hypervisorVersion", sb.entity().getHypervisorVersion(), SearchCriteria.Op.EQ);
 
         String haTag = _haMgr.getHaTag();
         SearchBuilder<HostTagVO> hostTagSearch = null;
@@ -896,6 +974,12 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         }
         if (cluster != null) {
             sc.setParameters("clusterId", cluster);
+        }
+        if (hypervisorType != null) {
+            sc.setParameters("hypervisorType", hypervisorType);
+        }
+        if (hypervisorVersion != null) {
+            sc.setParameters("hypervisorVersion", hypervisorVersion);
         }
 
         if (resourceState != null) {
@@ -1995,6 +2079,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(CancelMaintenanceCmd.class);
         cmdList.add(DeleteHostCmd.class);
         cmdList.add(ListHostsCmd.class);
+        cmdList.add(ListHostsForMigrationCmd.class);
         cmdList.add(PrepareForMaintenanceCmd.class);
         cmdList.add(ReconnectHostCmd.class);
         cmdList.add(UpdateHostCmd.class);
@@ -2089,6 +2174,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(ListVlanIpRangesCmd.class);
         cmdList.add(AssignVMCmd.class);
         cmdList.add(MigrateVMCmd.class);
+        cmdList.add(MigrateVirtualMachineWithVolumeCmd.class);
         cmdList.add(RecoverVMCmd.class);
         cmdList.add(CreatePrivateGatewayCmd.class);
         cmdList.add(CreateVPCOfferingCmd.class);
