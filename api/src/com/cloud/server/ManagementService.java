@@ -79,6 +79,7 @@ import com.cloud.storage.StoragePool;
 import com.cloud.template.VirtualMachineTemplate;
 import com.cloud.user.SSHKeyPair;
 import com.cloud.utils.Pair;
+import com.cloud.utils.Ternary;
 import com.cloud.vm.InstanceGroup;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachine.Type;
@@ -389,10 +390,11 @@ public interface ManagementService {
      * @param Long
      *            vmId
      *            Id of The VM to migrate
-     * @return Pair<List<? extends Host>, List<? extends Host>> List of all Hosts in VM's cluster and list of Hosts with
-     *         enough capacity
+     * @return Ternary<List<? extends Host>, List<? extends Host>, Map<Host, Boolean>> List of all Hosts to which a VM
+     *         can be migrated, list of Hosts with enough capacity and hosts requiring storage motion for migration.
      */
-    Pair<Pair<List<? extends Host>, Integer>, List<? extends Host>> listHostsForMigrationOfVM(Long vmId, Long startIndex, Long pageSize);
+    Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>> listHostsForMigrationOfVM(
+            Long vmId, Long startIndex, Long pageSize);
 
     /**
      * List storage pools for live migrating of a volume. The API returns list of all pools in the cluster to which the

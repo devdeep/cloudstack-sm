@@ -150,6 +150,9 @@ public class HostResponse extends BaseResponse {
     @SerializedName("suitableformigration") @Param(description="true if this host is suitable(has enough capacity and satisfies all conditions like hosttags, max guests vm limit etc) to migrate a VM to it , false otherwise")
     private Boolean suitableForMigration;
 
+    @SerializedName("requiresStorageMotion") @Param(description="true if migrating a vm to this host requires storage motion, false otherwise")
+    private Boolean requiresStorageMotion;
+
     @SerializedName("resourcestate") @Param(description="the resource state of the host")
     private String resourceState;
 
@@ -330,9 +333,12 @@ public class HostResponse extends BaseResponse {
         this.hasEnoughCapacity = hasEnoughCapacity;
     }
 
-
     public void setSuitableForMigration(Boolean suitableForMigration) {
         this.suitableForMigration = suitableForMigration;
+    }
+
+    public void setRequiresStorageMotion(Boolean requiresStorageMotion) {
+        this.requiresStorageMotion = requiresStorageMotion;
     }
 
     public String getResourceState() {
