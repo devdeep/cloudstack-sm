@@ -41,6 +41,7 @@ public interface VirtualMachine extends RunningOn, ControlledEntity, Identity, I
         Destroyed(false, "VM is marked for destroy."),
         Expunging(true, "VM is being   expunged."),
         Migrating(true, "VM is being migrated.  host id holds to from host"),
+        MigratingWithStorage(true, "VM is being migrated with stroage.  host id holds to from host"),
         Error(false, "VM is in error"),
         Unknown(false, "VM state is unknown."),
         Shutdowned(false, "VM is shutdowned from inside");
@@ -90,6 +91,7 @@ public interface VirtualMachine extends RunningOn, ControlledEntity, Identity, I
             s_fsm.addTransition(State.Destroyed, VirtualMachine.Event.RecoveryRequested, State.Stopped);
             s_fsm.addTransition(State.Destroyed, VirtualMachine.Event.ExpungeOperation, State.Expunging);
             s_fsm.addTransition(State.Running, VirtualMachine.Event.MigrationRequested, State.Migrating);
+            s_fsm.addTransition(State.Running, VirtualMachine.Event.MigrationWithStorageRequested, State.MigratingWithStorage);
             s_fsm.addTransition(State.Running, VirtualMachine.Event.AgentReportRunning, State.Running);
             s_fsm.addTransition(State.Running, VirtualMachine.Event.AgentReportStopped, State.Stopped);
             s_fsm.addTransition(State.Running, VirtualMachine.Event.StopRequested, State.Stopping);
@@ -101,6 +103,12 @@ public interface VirtualMachine extends RunningOn, ControlledEntity, Identity, I
             s_fsm.addTransition(State.Migrating, VirtualMachine.Event.AgentReportRunning, State.Running);
             s_fsm.addTransition(State.Migrating, VirtualMachine.Event.AgentReportStopped, State.Stopped);
             s_fsm.addTransition(State.Migrating, VirtualMachine.Event.AgentReportShutdowned, State.Stopped);
+            s_fsm.addTransition(State.MigratingWithStorage, VirtualMachine.Event.MigrationWithStorageRequested, State.MigratingWithStorage);
+            s_fsm.addTransition(State.MigratingWithStorage, VirtualMachine.Event.OperationSucceeded, State.Running);
+            s_fsm.addTransition(State.MigratingWithStorage, VirtualMachine.Event.OperationFailed, State.Running);
+            s_fsm.addTransition(State.MigratingWithStorage, VirtualMachine.Event.AgentReportRunning, State.Running);
+            s_fsm.addTransition(State.MigratingWithStorage, VirtualMachine.Event.AgentReportStopped, State.Stopped);
+            s_fsm.addTransition(State.MigratingWithStorage, VirtualMachine.Event.AgentReportShutdowned, State.Stopped);
             s_fsm.addTransition(State.Stopping, VirtualMachine.Event.OperationSucceeded, State.Stopped);
             s_fsm.addTransition(State.Stopping, VirtualMachine.Event.OperationFailed, State.Running);
             s_fsm.addTransition(State.Stopping, VirtualMachine.Event.AgentReportRunning, State.Running);
@@ -167,6 +175,7 @@ public interface VirtualMachine extends RunningOn, ControlledEntity, Identity, I
         AgentReportStopped,
         AgentReportRunning,
         MigrationRequested,
+        MigrationWithStorageRequested,
         StorageMigrationRequested,
         ExpungeOperation,
         OperationSucceeded,

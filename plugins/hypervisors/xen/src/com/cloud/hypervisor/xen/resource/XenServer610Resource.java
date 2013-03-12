@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.ejb.Local;
 
@@ -30,12 +31,17 @@ import org.apache.log4j.Logger;
 import com.cloud.resource.ServerResource;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.utils.script.Script;
-
+import com.cloud.vm.VirtualMachine.State;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
 import com.cloud.agent.api.storage.MigrateVolumeAnswer;
 import com.cloud.agent.api.storage.MigrateVolumeCommand;
+import com.cloud.agent.api.MigrateWithStorageAnswer;
+import com.cloud.agent.api.MigrateWithStorageCommand;
 import com.cloud.agent.api.to.StorageFilerTO;
+import com.cloud.network.Networks.TrafficType;
+import com.cloud.agent.api.to.VirtualMachineTO;
+import com.cloud.agent.api.to.VolumeTO;
 import com.xensource.xenapi.Connection;
 import com.xensource.xenapi.Host;
 import com.xensource.xenapi.Network;
@@ -75,10 +81,94 @@ public class XenServer610Resource extends XenServer56FP1Resource {
 
     @Override
     public Answer executeRequest(Command cmd) {
-        if (cmd instanceof MigrateVolumeCommand) {
+        if (cmd instanceof MigrateWithStorageCommand) {
+            return execute((MigrateWithStorageCommand) cmd);
+        } else if (cmd instanceof MigrateVolumeCommand) {
             return execute((MigrateVolumeCommand) cmd);
         } else {
             return super.executeRequest(cmd);
+        }
+    }
+
+    protected MigrateWithStorageAnswer execute(MigrateWithStorageCommand cmd) {
+        Connection connection = getConnection();
+        VirtualMachineTO vmSpec = cmd.getVirtualMachine();
+        Map<VolumeTO, StorageFilerTO> volumeToFiler = cmd.getVolumeToFiler();
+        final String vmName = vmSpec.getName();
+        Task task = null;
+        State state = s_vms.getState(_cluster, vmName);
+
+        synchronized (_cluster.intern()) {
+            s_vms.put(_cluster, _name, vmName, State.Stopping);
+        }
+
+        try {
+            Map<String, String> other = new HashMap<String, String>();
+            other.put("live", "true");
+            Network networkForSm = getNativeNetworkForTraffic(connection, TrafficType.Storage, null).getNetwork();
+            Host host = Host.getByUuid(connection, _host.uuid);
+            Map<String,String> token = host.migrateReceive(connection, networkForSm, other);
+
+            // Get the vm to migrate.
+            Set<VM> vms = VM.getByNameLabel(connection, vmSpec.getName());
+            VM vmToMigrate = vms.iterator().next();
+
+            // Create the vif map. The vm stays in the same cluster so we have to pass an empty vif map.
+            Map<VIF, Network> vifMap = new HashMap<VIF, Network>();
+            Map<VDI, SR> vdiMap = new HashMap<VDI, SR>();
+            for (Map.Entry<VolumeTO, StorageFilerTO> entry : volumeToFiler.entrySet()) {
+                vdiMap.put(getVDIbyUuid(connection, entry.getKey().getPath()),
+                        getStorageRepository(connection, entry.getValue().getUuid()));
+            }
+
+            // Check migration with storage is possible.
+            task = vmToMigrate.assertCanMigrateAsync(connection, token, true, vdiMap, vifMap, other);
+            try {
+                // poll every 1 seconds 
+                long timeout = (_migratewait) * 1000L;
+                waitForTask(connection, task, 1000, timeout);
+                checkForSuccess(connection, task);
+            } catch (Types.HandleInvalid e) {
+                s_logger.error("Error while checking if vm " + vmName + " can be migrated to the destination host " +
+                        host, e);
+                throw new CloudRuntimeException("Error while checking if vm " + vmName + " can be migrated to the " +
+                        "destination host " + host, e);
+            }
+
+            // Migrate now.
+            task = vmToMigrate.migrateSendAsync(connection, token, true, vdiMap, vifMap, other);
+            try {
+                // poll every 1 seconds 
+                long timeout = (_migratewait) * 1000L;
+                waitForTask(connection, task, 1000, timeout);
+                checkForSuccess(connection, task);
+            } catch (Types.HandleInvalid e) {
+                s_logger.error("Error while migrating vm " + vmName + " to the destination host " + host, e);
+                throw new CloudRuntimeException("Error while migrating vm " + vmName + " to the destination host " +
+                        host, e);
+            }
+
+            vmToMigrate.setAffinity(connection, host);
+            state = State.Stopping;
+
+            return new MigrateWithStorageAnswer(cmd);
+        } catch (Exception e) {
+            s_logger.warn("Catch Exception " + e.getClass().getName() + ". Storage motion failed due to " +
+                    e.toString(), e);
+            return new MigrateWithStorageAnswer(cmd, e);
+        } finally {
+            if (task != null) {
+                try {
+                    task.destroy(connection);
+                } catch (Exception e) {
+                    s_logger.debug("Unable to destroy task " + task.toString() + " on host " + _host.uuid +" due to " +
+                            e.toString());
+                }
+            }
+
+            synchronized (_cluster.intern()) {
+                s_vms.put(_cluster, _name, vmName, state);
+            }
         }
     }
 
