@@ -16,24 +16,34 @@
 // under the License.
 package com.cloud.agent.api;
 
+import java.util.Set;
+import com.cloud.agent.api.to.VolumeTO;
+
 public class MigrateWithStorageAnswer extends Answer {
 
-    protected MigrateWithStorageAnswer() {
-    }
+    Set<VolumeTO> volumeToSet;
 
     public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, boolean result, String detail) {
         super(cmd, result, detail);
+        volumeToSet = null;
     }
 
     public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, String detail) {
         super(cmd, false, detail);
+        volumeToSet = null;
     }
 
     public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, Exception ex) {
         super(cmd, ex);
+        volumeToSet = null;
     }
 
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd) {
+    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, Set<VolumeTO> volumeToSet) {
         super(cmd, true, null);
+        this.volumeToSet = volumeToSet;
+    }
+
+    public Set<VolumeTO> getVolumeToSet() {
+        return volumeToSet;
     }
 }
