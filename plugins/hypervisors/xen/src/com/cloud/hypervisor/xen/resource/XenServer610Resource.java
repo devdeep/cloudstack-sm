@@ -148,10 +148,29 @@ public class XenServer610Resource extends XenServer56FP1Resource {
                         host, e);
             }
 
+            // Volume paths would have changed. Return that information.
+            Set<VBD> vbds = vmToMigrate.getVBDs(connection);
+            Map<String, VDI> deviceIdToVdiMap = new HashMap<String, VDI>();
+            // get vdi:vbdr to a map
+            for (VBD vbd : vbds) {
+                VBD.Record vbdr = vbd.getRecord(connection);
+                if (vbdr.type == Types.VbdType.DISK) {
+                    VDI vdi = vbdr.VDI;
+                    deviceIdToVdiMap.put(vbdr.userdevice, vdi);
+                }
+            }
+
+            Set<VolumeTO> volumeToSet = volumeToFiler.keySet();
+            for (VolumeTO volumeTo : volumeToSet) {
+                Long deviceId = volumeTo.getDeviceId();
+                VDI vdi = deviceIdToVdiMap.get(deviceId.toString());
+                volumeTo.setPath(vdi.getUuid(connection));
+            }
+
             vmToMigrate.setAffinity(connection, host);
             state = State.Stopping;
 
-            return new MigrateWithStorageAnswer(cmd);
+            return new MigrateWithStorageAnswer(cmd, volumeToSet);
         } catch (Exception e) {
             s_logger.warn("Catch Exception " + e.getClass().getName() + ". Storage motion failed due to " +
                     e.toString(), e);
