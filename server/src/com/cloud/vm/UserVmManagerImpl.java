@@ -3501,7 +3501,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Use
         long srcHostId = vm.getHostId();
         Host srcHost = _resourceMgr.getHost(srcHostId);
         // Check if src and destination hosts are valid and migrating to same host
-        if (destinationHost.getId() == srcHostId){
+        if (destinationHost.getId() == srcHostId) {
             throw new InvalidParameterValueException("Cannot migrate VM, VM is already present on this host, please" +
                     " specify valid destination host to migrate the VM");
         }
@@ -3537,25 +3537,27 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Use
                 // then fail the call. migrateVirtualMachine api should have been used.
                 throw new InvalidParameterValueException("Migration of the vm " + vm + "from host " + srcHost +
                         " to destination host " + destinationHost + " doesn't involve migrating the volumes.");
-            } else {
-                // Check if all the volumes and pools passed as parameters are valid.
-                for (Map.Entry<String, String> entry : volumeToPool.entrySet()) {
-                    VolumeVO volume = _volsDao.findByUuid(entry.getKey());
-                    StoragePoolVO pool = _storagePoolDao.findByUuid(entry.getValue());
-                    if (volume == null) {
-                        throw new InvalidParameterValueException("There is no volume present with the given id " +
-                                entry.getKey());
-                    } else if (pool == null) {
-                        throw new InvalidParameterValueException("There is no storage pool present with the given id " +
-                                entry.getValue());
-                    } else {
-                        // Verify the volume given belongs to the vm.
-                        if (!vmVolumes.contains(volume)) {
-                            throw new InvalidParameterValueException("There volume " + volume + " doesn't belong to " +
-                                    "the virtual machine "+ vm + " that has to be migrated");
-                        }
-                        volToPoolObjectMap.put(volume, pool);
+            }
+        }
+
+        if (!volumeToPool.isEmpty()) {
+            // Check if all the volumes and pools passed as parameters are valid.
+            for (Map.Entry<String, String> entry : volumeToPool.entrySet()) {
+                VolumeVO volume = _volsDao.findByUuid(entry.getKey());
+                StoragePoolVO pool = _storagePoolDao.findByUuid(entry.getValue());
+                if (volume == null) {
+                    throw new InvalidParameterValueException("There is no volume present with the given id " +
+                            entry.getKey());
+                } else if (pool == null) {
+                    throw new InvalidParameterValueException("There is no storage pool present with the given id " +
+                            entry.getValue());
+                } else {
+                    // Verify the volume given belongs to the vm.
+                    if (!vmVolumes.contains(volume)) {
+                        throw new InvalidParameterValueException("There volume " + volume + " doesn't belong to " +
+                                "the virtual machine "+ vm + " that has to be migrated");
                     }
+                    volToPoolObjectMap.put(volume, pool);
                 }
             }
         }
