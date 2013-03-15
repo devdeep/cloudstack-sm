@@ -19,16 +19,15 @@ package com.cloud.agent.api;
 import java.util.List;
 import com.cloud.agent.api.to.VolumeTO;
 
-public class MigrateWithStorageAnswer extends Answer {
-
+public class MigrateWithStorageCompleteAnswer extends Answer {
     List<VolumeTO> volumeTos;
 
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, Exception ex) {
+    public MigrateWithStorageCompleteAnswer(MigrateWithStorageCompleteCommand cmd, Exception ex) {
         super(cmd, ex);
         volumeTos = null;
     }
 
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, List<VolumeTO> volumeTos) {
+    public MigrateWithStorageCompleteAnswer(MigrateWithStorageCompleteCommand cmd, List<VolumeTO> volumeTos) {
         super(cmd, true, null);
         this.volumeTos = volumeTos;
     }
