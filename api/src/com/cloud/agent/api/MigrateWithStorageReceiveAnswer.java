@@ -16,24 +16,40 @@
 // under the License.
 package com.cloud.agent.api;
 
-import java.util.List;
+import java.util.Map;
 import com.cloud.agent.api.to.VolumeTO;
+import com.cloud.agent.api.to.NicTO;
 
-public class MigrateWithStorageAnswer extends Answer {
+public class MigrateWithStorageReceiveAnswer extends Answer {
 
-    List<VolumeTO> volumeTos;
+    Map<VolumeTO, Object> volumeToSr;
+    Map<NicTO, Object> nicToNetwork;
+    Map<String, String> token;
 
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, Exception ex) {
+    public MigrateWithStorageReceiveAnswer(MigrateWithStorageReceiveCommand cmd, Exception ex) {
         super(cmd, ex);
-        volumeTos = null;
+        volumeToSr = null;
+        nicToNetwork = null;
+        token = null;
     }
 
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, List<VolumeTO> volumeTos) {
+    public MigrateWithStorageReceiveAnswer(MigrateWithStorageReceiveCommand cmd, Map<VolumeTO, Object> volumeToSr,
+            Map<NicTO, Object> nicToNetwork, Map<String, String> token) {
         super(cmd, true, null);
-        this.volumeTos = volumeTos;
+        this.volumeToSr = volumeToSr;
+        this.nicToNetwork = nicToNetwork;
+        this.token= token; 
     }
 
-    public List<VolumeTO> getVolumeTos() {
-        return volumeTos;
+    public Map<VolumeTO, Object> getVolumeToSr() {
+        return volumeToSr;
+    }
+
+    public Map<NicTO, Object> getNicToNetwork() {
+        return nicToNetwork;
+    }
+
+    public Map<String, String> getToken() {
+        return token;
     }
 }

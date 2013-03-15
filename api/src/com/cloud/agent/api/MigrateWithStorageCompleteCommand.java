@@ -16,24 +16,21 @@
 // under the License.
 package com.cloud.agent.api;
 
-import java.util.List;
-import com.cloud.agent.api.to.VolumeTO;
+import com.cloud.agent.api.to.VirtualMachineTO;
 
-public class MigrateWithStorageAnswer extends Answer {
+public class MigrateWithStorageCompleteCommand extends Command {
+    VirtualMachineTO vm;
 
-    List<VolumeTO> volumeTos;
-
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, Exception ex) {
-        super(cmd, ex);
-        volumeTos = null;
+    public MigrateWithStorageCompleteCommand(VirtualMachineTO vm) {
+        this.vm = vm;
     }
 
-    public MigrateWithStorageAnswer(MigrateWithStorageCommand cmd, List<VolumeTO> volumeTos) {
-        super(cmd, true, null);
-        this.volumeTos = volumeTos;
+    public VirtualMachineTO getVirtualMachine() {
+        return vm;
     }
 
-    public List<VolumeTO> getVolumeTos() {
-        return volumeTos;
+    @Override
+    public boolean executeInSequence() {
+        return false;
     }
 }
