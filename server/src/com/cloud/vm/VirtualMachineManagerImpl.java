@@ -62,6 +62,12 @@ import com.cloud.agent.api.MigrateAnswer;
 import com.cloud.agent.api.MigrateCommand;
 import com.cloud.agent.api.MigrateWithStorageAnswer;
 import com.cloud.agent.api.MigrateWithStorageCommand;
+import com.cloud.agent.api.MigrateWithStorageReceiveAnswer;
+import com.cloud.agent.api.MigrateWithStorageReceiveCommand;
+import com.cloud.agent.api.MigrateWithStorageSendAnswer;
+import com.cloud.agent.api.MigrateWithStorageSendCommand;
+import com.cloud.agent.api.MigrateWithStorageCompleteAnswer;
+import com.cloud.agent.api.MigrateWithStorageCompleteCommand;
 import com.cloud.agent.api.PingRoutingCommand;
 import com.cloud.agent.api.PrepareForMigrationAnswer;
 import com.cloud.agent.api.PrepareForMigrationCommand;
@@ -1524,7 +1530,7 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
 
             // Put the vm in migrating state.
             try {
-                if (!changeState(vm, Event.MigrationWithStorageRequested, hostId, work, Step.Migrating)) {
+                if (!changeState(vm, Event.MigrationRequested, hostId, work, Step.Migrating)) {
                     s_logger.info("Migration cancelled because state has changed: " + vm);
                     throw new ConcurrentOperationException("Migration cancelled because state has changed: " + vm);
                 }
@@ -1578,6 +1584,76 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
         }
     }
 
+    private <T extends VMInstanceVO> void migrateWithStorageAcrossCluster(T vm, VirtualMachineTO to, Host srcHost,
+            Host destHost, Map<VolumeVO, StoragePoolVO> volumeToPool) throws AgentUnavailableException {
+
+        // Initiate migration of a virtual machine with it's volumes.
+        try {
+            Map<VolumeTO, StorageFilerTO> volumeToFilerto = new HashMap<VolumeTO, StorageFilerTO>();
+            for (Map.Entry<VolumeVO, StoragePoolVO> entry : volumeToPool.entrySet()) {
+                VolumeVO volume = entry.getKey();
+                VolumeTO volumeTo = new VolumeTO(volume, _storagePoolDao.findById(volume.getPoolId()));
+                StorageFilerTO filerTo = new StorageFilerTO(entry.getValue());
+                volumeToFilerto.put(volumeTo, filerTo);
+            }
+
+            MigrateWithStorageReceiveCommand receiveCmd = new MigrateWithStorageReceiveCommand(to, volumeToFilerto);
+            MigrateWithStorageReceiveAnswer receiveAnswer = (MigrateWithStorageReceiveAnswer) _agentMgr.send(
+                    destHost.getId(), receiveCmd);
+            if (receiveAnswer == null) {
+                s_logger.error("Migration with storage of vm " + vm+ " to host " + destHost + " failed.");
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost);
+            } else if (!receiveAnswer.getResult()) {
+                s_logger.error("Migration with storage of vm " + vm+ " failed. Details: " + receiveAnswer.getDetails());
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost +
+                        ". " + receiveAnswer.getDetails());
+            }
+
+            MigrateWithStorageSendCommand sendCmd = new MigrateWithStorageSendCommand(to, receiveAnswer.getVolumeToSr(),
+                    receiveAnswer.getNicToNetwork(), receiveAnswer.getToken());
+            MigrateWithStorageSendAnswer sendAnswer = (MigrateWithStorageSendAnswer) _agentMgr.send(
+                    srcHost.getId(), sendCmd);
+            if (sendAnswer == null) {
+                s_logger.error("Migration with storage of vm " + vm+ " to host " + destHost + " failed.");
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost);
+            } else if (!sendAnswer.getResult()) {
+                s_logger.error("Migration with storage of vm " + vm+ " failed. Details: " + sendAnswer.getDetails());
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost +
+                        ". " + sendAnswer.getDetails());
+            }
+
+            MigrateWithStorageCompleteCommand command = new MigrateWithStorageCompleteCommand(to);
+            MigrateWithStorageCompleteAnswer answer = (MigrateWithStorageCompleteAnswer) _agentMgr.send(
+                    destHost.getId(), command);
+            if (answer == null) {
+                s_logger.error("Migration with storage of vm " + vm + " failed.");
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost);
+            } else if (!answer.getResult()) {
+                s_logger.error("Migration with storage of vm " + vm+ " failed. Details: " + answer.getDetails());
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost +
+                        ". " + answer.getDetails());
+            } else {
+                // Update the volume details after migration.
+                for (VolumeTO volume : answer.getVolumeTos()) {
+                    if (volume.getPath() != null) {
+                        VolumeVO volumeVO = _volsDao.findById(volume.getId());
+                        StoragePoolVO pool = volumeToPool.get(volumeVO);
+                        Long oldPoolId = volumeVO.getPoolId();
+                        volumeVO.setPath(volume.getPath());
+                        volumeVO.setFolder(pool.getPath());
+                        volumeVO.setPodId(pool.getPodId());
+                        volumeVO.setPoolId(pool.getId());
+                        volumeVO.setLastPoolId(oldPoolId);
+                        _volsDao.update(volume.getId(), volumeVO);
+                    }
+                }
+            }
+        } catch (OperationTimedoutException e) {
+            s_logger.error("Error while migrating vm " + vm + " to host " + destHost, e);
+            throw new AgentUnavailableException("Operation timed out on storage motion for " + vm, destHost.getId());
+        }
+    }
+
     private <T extends VMInstanceVO> void migrateWithStorageWithinCluster(T vm, VirtualMachineTO to, Host srcHost,
             Host destHost, Map<VolumeVO, StoragePoolVO> volumeToPool) throws AgentUnavailableException {
 
@@ -1591,15 +1667,18 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
                 volumeToFilerto.put(volumeTo, filerTo);
             }
 
-            MigrateWithStorageCommand mwsc = new MigrateWithStorageCommand(to, volumeToFilerto);
-            MigrateWithStorageAnswer mwsa = (MigrateWithStorageAnswer) _agentMgr.send(destHost.getId(), mwsc);
-            if (mwsa == null || !mwsa.getResult()) {
-                s_logger.error("Migration with storage of vm " + vm+ " failed. Details: " + mwsa.getDetails());
+            MigrateWithStorageCommand command = new MigrateWithStorageCommand(to, volumeToFilerto);
+            MigrateWithStorageAnswer answer = (MigrateWithStorageAnswer) _agentMgr.send(destHost.getId(), command);
+            if (answer == null) {
+                s_logger.error("Migration with storage of vm " + vm + " failed.");
+                throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost);
+            } else if (!answer.getResult()) {
+                s_logger.error("Migration with storage of vm " + vm+ " failed. Details: " + answer.getDetails());
                 throw new CloudRuntimeException("Error while migrating the vm " + vm + " to host " + destHost +
-                        ". " + mwsa.getDetails());
+                        ". " + answer.getDetails());
             } else {
                 // Update the volume details after migration.
-                for (VolumeTO volume : mwsa.getVolumeToSet()) {
+                for (VolumeTO volume : answer.getVolumeTos()) {
                     if (volume.getPath() != null) {
                         VolumeVO volumeVO = _volsDao.findById(volume.getId());
                         StoragePoolVO pool = volumeToPool.get(volumeVO);
@@ -1694,7 +1773,7 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
                 // resource base.
                 migrateWithStorageWithinCluster(vm, to, srcHost, destHost, volumeToPool);
             } else {
-                throw new CloudRuntimeException("Migration across cluster unimplemented.");
+                migrateWithStorageAcrossCluster(vm, to, srcHost, destHost, volumeToPool);
             }
 
             // Put the vm and its volumes back to running/ready state.
