@@ -645,12 +645,13 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             ex.addProxyObject(vm, vmId, "vmId");
             throw ex;
         }
-        // business logic
+
         if (vm.getState() != State.Running) {
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("VM is not Running, unable to migrate the vm" + vm);
             }
-            InvalidParameterValueException ex = new InvalidParameterValueException("VM is not Running, unable to migrate the vm with specified id");
+            InvalidParameterValueException ex = new InvalidParameterValueException("VM is not Running, unable to" +
+                    " migrate the vm with specified id");
             ex.addProxyObject(vm, vmId, "vmId");
             throw ex;
         }
@@ -660,7 +661,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug(vm + " is not XenServer/VMware/KVM/OVM, cannot migrate this VM.");
             }
-            throw new InvalidParameterValueException("Unsupported Hypervisor Type for VM migration, we support XenServer/VMware/KVM only");
+            throw new InvalidParameterValueException("Unsupported Hypervisor Type for VM migration, we support " +
+                    "XenServer/VMware/KVM/Ovm only");
         }
 
         long srcHostId = vm.getHostId();
@@ -809,7 +811,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         Account caller = UserContext.current().getCaller();
         if (caller.getType() != Account.ACCOUNT_TYPE_ADMIN) {
             if (s_logger.isDebugEnabled()) {
-                s_logger.debug("Caller is not a root admin, permission denied to migrate the VM");
+                s_logger.debug("Caller is not a root admin, permission denied to migrate the volume");
             }
             throw new PermissionDeniedException("No permission to migrate volume, only root admin can migrate a volume");
         }
@@ -818,7 +820,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         if (volume == null) {
             InvalidParameterValueException ex = new InvalidParameterValueException("Unable to find volume with" +
                     " specified id.");
-            ex.addProxyObject(volume, volumeId, "vmId");
+            ex.addProxyObject(volume, volumeId, "volumeId");
             throw ex;
         }
 
@@ -833,8 +835,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
         // Check that the VM is in correct state.
         if (vm == null || vm.getState() != State.Running) {
-            s_logger.info("Volume " + volume + " isn't attached to any vm. Only volumes attached to a running VM can" +
-                    " be migrated.");
+            s_logger.info("Volume " + volume + " isn't attached to any running vm. Only volumes attached to a running" +
+                    " VM can be migrated.");
             return new Pair<List<? extends StoragePool>, List<? extends StoragePool>>(allPools, suitablePools);
         }
 
