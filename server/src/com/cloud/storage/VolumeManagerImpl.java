@@ -1935,7 +1935,7 @@ public class VolumeManagerImpl extends ManagerBase implements VolumeManager {
     public Volume migrateVolume(MigrateVolumeCmd cmd) {
         Long volumeId = cmd.getVolumeId();
         Long storagePoolId = cmd.getStoragePoolId();
-        
+
         VolumeVO vol = _volsDao.findById(volumeId);
         if (vol == null) {
             throw new InvalidParameterValueException(

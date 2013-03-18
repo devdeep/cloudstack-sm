@@ -586,8 +586,8 @@ public class VolumeServiceImpl implements VolumeService {
         VolumeApiResult res = new VolumeApiResult(srcVolume);
         try {
             if (!this.snapshotMgr.canOperateOnVolume(srcVolume)) {
-                s_logger.debug("There are snapshots creating on this volume, can not move this volume");
-                res.setResult("There are snapshots creating on this volume, can not move this volume");
+                s_logger.debug("Snapshots are being created on this volume. This volume cannot be migrated now.");
+                res.setResult("Snapshots are being created on this volume. This volume cannot be migrated now.");
                 future.complete(res);
                 return future;
             }

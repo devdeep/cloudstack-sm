@@ -1484,6 +1484,7 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
                 DataCenterDeployment plan = new DataCenterDeployment(host.getDataCenterId(), host.getPodId(),
                         host.getClusterId(), host.getId(), null, null);
                 ExcludeList avoid = new ExcludeList();
+                boolean currentPoolAvailable = false;
 
                 for (StoragePoolAllocator allocator : _storagePoolAllocators) {
                     List<StoragePool> poolList = allocator.allocateToPool(diskProfile, profile, plan, avoid,
@@ -1492,14 +1493,17 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
                         // Volume needs to be migrated. Pick the first pool from the list. Add a mapping to migrate the
                         // volume to a pool only if it is required; that is the current pool on which the volume resides
                         // is not available on the destination host.
-                        if (!poolList.contains(currentPool)) {
-                            volumeToPool.put(volume, (StoragePoolVO) poolList.get(0));
-                            break;
+                        if (poolList.contains(currentPool)) {
+                            currentPoolAvailable = true;
+                        } else {
+                            volumeToPool.put(volume, _storagePoolDao.findByUuid(poolList.get(0).getUuid()));
                         }
+
+                        break;
                     }
                 }
 
-                if (!volumeToPool.containsKey(volume)) {
+                if (!currentPoolAvailable && !volumeToPool.containsKey(volume)) {
                     // Cannot find a pool for the volume. Throw an exception.
                     throw new CloudRuntimeException("Cannot find a storage pool which is available for volume " +
                             volume + " while migrating virtual machine " + profile.getVirtualMachine() + " to host " +
@@ -1597,6 +1601,10 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
                 volumeToFilerto.put(volumeTo, filerTo);
             }
 
+            // Migration across cluster needs to be done in three phases.
+            // 1. Send a migrate receive command to the destination host so that it is ready to receive a vm.
+            // 2. Send a migrate send command to the source host. This actually migrates the vm to the destination.
+            // 3. Complete the process. Update the volume details.
             MigrateWithStorageReceiveCommand receiveCmd = new MigrateWithStorageReceiveCommand(to, volumeToFilerto);
             MigrateWithStorageReceiveAnswer receiveAnswer = (MigrateWithStorageReceiveAnswer) _agentMgr.send(
                     destHost.getId(), receiveCmd);
