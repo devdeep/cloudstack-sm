@@ -79,7 +79,7 @@ public class MigrateVirtualMachineWithVolumeCmd extends BaseAsyncCmd {
 
     public Map<String, String> getVolumeToPool() {
         Map<String, String> volumeToPoolMap = new HashMap<String, String>();
-        if (!migrateVolumeTo.isEmpty()) {
+        if (migrateVolumeTo != null && !migrateVolumeTo.isEmpty()) {
             Collection<?> allValues = migrateVolumeTo.values();
             Iterator<?> iter = allValues.iterator();
             while (iter.hasNext()) {
