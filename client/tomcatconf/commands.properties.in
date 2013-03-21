@@ -68,6 +68,7 @@ restoreVirtualMachine=15
 changeServiceForVirtualMachine=15
 assignVirtualMachine=1
 migrateVirtualMachine=1
+migrateVirtualMachineWithVolume=1
 recoverVirtualMachine=7
 
 #### snapshot commands
@@ -251,6 +252,7 @@ deleteHost=3
 prepareHostForMaintenance=1
 cancelHostMaintenance=1
 listHosts=3
+listHostsForMigration=1
 addSecondaryStorage=1
 updateHostPassword=1
 
@@ -285,6 +287,7 @@ deleteStoragePool=1
 listClusters=3
 enableStorageMaintenance=1
 cancelStorageMaintenance=1
+listStoragePoolsForMigration=1
 
 #### security group commands
 createSecurityGroup=15

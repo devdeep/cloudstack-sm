@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 (function($, cloudStack) {
+  var requiresStorageMotion = false;
   cloudStack.sections.instances = {
     title: 'label.instances',
     id: 'instances',
@@ -958,16 +959,22 @@
                   validation: { required: true },
                   select: function(args) {
                     $.ajax({
-                      url: createURL("listHosts&VirtualMachineId=" + args.context.instances[0].id),
+                      url: createURL("listHostsForMigration&VirtualMachineId=" + args.context.instances[0].id),
                       //url: createURL("listHosts"),	//for testing only, comment it out before checking in.
                       dataType: "json",
                       async: true,
                       success: function(json) {
-                        var hosts = json.listhostsresponse.host;
+                        var hosts = json.listhostsformigrationresponse.host;
+                        requiresStorageMotion =  json.listhostsformigrationresponse.host[0].requiresStorageMotion;
                         var items = [];
                         $(hosts).each(function() {
-                          items.push({id: this.id, description: (this.name + " (" + (this.suitableformigration? "Suitable": "Not Suitable") + ")")});
-                        });
+                        if(this.requiresStorageMotion == true)
+                          items.push({id: this.id, description: (this.name + " (" + (this.suitableformigration? "Suitable, ": "Not Suitable, ")  +  "Storage migration required)"  )});
+                        else
+                          items.push({id: this.id, description: (this.name + " (" + (this.suitableformigration? "Suitable": "Not Suitable")  + ")"  )});
+
+
+                         });
                         args.response.success({data: items});
                       }
                     });
@@ -976,7 +983,31 @@
               }
             },
             action: function(args) {
+              
+            if(requiresStorageMotion == true){   
               $.ajax({
+                url: createURL("migrateVirtualMachineWithVolume&hostid=" + args.data.hostId + "&virtualmachineid=" + args.context.instances[0].id),
+                dataType: "json",
+                async: true,
+                success: function(json) {
+                  var jid = json.migratevirtualmachinewithvolumeresponse.jobid;
+                  args.response.success(
+                    {_custom:
+                     {jobId: jid,
+                      getUpdatedItem: function(json) {
+                        return json.queryasyncjobresultresponse.jobresult.virtualmachine;
+                      },
+                      getActionFilter: function() {
+                        return vmActionfilter;
+                      }
+                     }
+                    }
+                  );
+                }
+              });
+             }
+             else{
+                  $.ajax({
                 url: createURL("migrateVirtualMachine&hostid=" + args.data.hostId + "&virtualmachineid=" + args.context.instances[0].id),
                 dataType: "json",
                 async: true,
@@ -987,21 +1018,6 @@
                      {jobId: jid,
                       getUpdatedItem: function(json) {
                         return json.queryasyncjobresultresponse.jobresult.virtualmachine;
-                        /*
-                         var vmObj;
-                         $.ajax({
-                         url: createURL("listVirtualMachines&id=" + args.context.instances[0].id),
-                         dataType: "json",
-                         async: false,
-                         success: function(json) {
-                         var items =  json.listvirtualmachinesresponse.virtualmachine;
-                         if(items != null && items.length > 0) {
-                         vmObj = items[0];
-                         }
-                         }
-                         });
-                         return vmObj;
-                         */
                       },
                       getActionFilter: function() {
                         return vmActionfilter;
@@ -1011,6 +1027,8 @@
                   );
                 }
               });
+
+              } 
             },
             notification: {
               poll: pollAsyncJobResult
