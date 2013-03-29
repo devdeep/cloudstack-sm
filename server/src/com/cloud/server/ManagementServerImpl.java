@@ -155,6 +155,7 @@ import org.apache.cloudstack.api.command.admin.vlan.DeleteVlanIpRangeCmd;
 import org.apache.cloudstack.api.command.admin.vlan.ListVlanIpRangesCmd;
 import org.apache.cloudstack.api.command.admin.vm.AssignVMCmd;
 import org.apache.cloudstack.api.command.admin.vm.MigrateVMCmd;
+import org.apache.cloudstack.api.command.admin.vm.MigrateVirtualMachineWithVolumeCmd;
 import org.apache.cloudstack.api.command.admin.vm.RecoverVMCmd;
 import org.apache.cloudstack.api.command.admin.vpc.*;
 import org.apache.cloudstack.api.command.admin.zone.CreateZoneCmd;
