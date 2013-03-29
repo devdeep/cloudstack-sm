@@ -83,7 +83,9 @@ public class StoragePoolResponse extends BaseResponse {
     @SerializedName(ApiConstants.SCOPE) @Param(description="the scope of the storage pool")
     private String scope;
 
-
+    @SerializedName("suitableformigration") @Param(description="true if this pool is suitable to migrate a volume," +
+            " false otherwise")
+    private Boolean suitableForMigration;
 
     /**
      * @return the scope
@@ -240,4 +242,7 @@ public class StoragePoolResponse extends BaseResponse {
         this.state = state;
     }
 
+    public void setSuitableForMigration(Boolean suitableForMigration) {
+        this.suitableForMigration = suitableForMigration;
+    }
 }

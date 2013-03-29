@@ -19,6 +19,7 @@ package org.apache.cloudstack.api.command.admin.host;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.ApiConstants;
@@ -37,6 +38,7 @@ import com.cloud.async.AsyncJob;
 import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.host.Host;
 import com.cloud.utils.Pair;
+import com.cloud.utils.Ternary;
 
 @APICommand(name = "listHosts", description="Lists hosts.", responseObject=HostResponse.class)
 public class ListHostsCmd extends BaseListCmd {
@@ -170,10 +172,13 @@ public class ListHostsCmd extends BaseListCmd {
         } else {
             Pair<List<? extends Host>,Integer> result;
             List<? extends Host> hostsWithCapacity = new ArrayList<Host>();
+            Map<Host, Boolean> hostsRequiringStorageMotion;
 
-            Pair<Pair<List<? extends Host>,Integer>, List<? extends Host>> hostsForMigration = _mgr.listHostsForMigrationOfVM(getVirtualMachineId(), this.getStartIndex(), this.getPageSizeVal());
+            Ternary<Pair<List<? extends Host>,Integer>, List<? extends Host>, Map<Host, Boolean>> hostsForMigration =
+                    _mgr.listHostsForMigrationOfVM(getVirtualMachineId(), this.getStartIndex(), this.getPageSizeVal());
             result = hostsForMigration.first();
             hostsWithCapacity = hostsForMigration.second();
+            hostsRequiringStorageMotion = hostsForMigration.third();
 
             response = new ListResponse<HostResponse>();
             List<HostResponse> hostResponses = new ArrayList<HostResponse>();
@@ -184,6 +189,14 @@ public class ListHostsCmd extends BaseListCmd {
                     suitableForMigration = true;
                 }
                 hostResponse.setSuitableForMigration(suitableForMigration);
+
+                Boolean requiresStorageMotion = hostsRequiringStorageMotion.get(host);
+                if (requiresStorageMotion != null && requiresStorageMotion) {
+                    hostResponse.setRequiresStorageMotion(true);
+                } else {
+                    hostResponse.setRequiresStorageMotion(false);
+                }
+
                 hostResponse.setObjectName("host");
                 hostResponses.add(hostResponse);
             }
@@ -192,6 +205,5 @@ public class ListHostsCmd extends BaseListCmd {
         }
         response.setResponseName(getCommandName());
         this.setResponseObject(response);
-
     }
 }

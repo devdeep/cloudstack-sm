@@ -561,7 +561,76 @@ public class VolumeServiceImpl implements VolumeService {
         
         return null;
     }
-    
+
+    private class MigrateVolumeContext<T> extends AsyncRpcConext<T> {
+        final VolumeInfo srcVolume;
+        final VolumeInfo destVolume;
+        final DataStore destStore;
+        final AsyncCallFuture<VolumeApiResult> future;
+        /**
+         * @param callback
+         */
+        public MigrateVolumeContext(AsyncCompletionCallback<T> callback, AsyncCallFuture<VolumeApiResult> future,
+                VolumeInfo srcVolume, VolumeInfo destVolume, DataStore destStore) {
+            super(callback);
+            this.srcVolume = srcVolume;
+            this.destVolume = destVolume;
+            this.destStore = destStore;
+            this.future = future;
+        }
+    }
+
+    @Override
+    public AsyncCallFuture<VolumeApiResult> migrateVolume(VolumeInfo srcVolume, DataStore destStore) {
+        AsyncCallFuture<VolumeApiResult> future = new AsyncCallFuture<VolumeApiResult>();
+        VolumeApiResult res = new VolumeApiResult(srcVolume);
+        try {
+            if (!this.snapshotMgr.canOperateOnVolume(srcVolume)) {
+                s_logger.debug("Snapshots are being created on this volume. This volume cannot be migrated now.");
+                res.setResult("Snapshots are being created on this volume. This volume cannot be migrated now.");
+                future.complete(res);
+                return future;
+            }
+
+            srcVolume.processEvent(Event.MigrationRequested);
+            MigrateVolumeContext<VolumeApiResult> context = new MigrateVolumeContext<VolumeApiResult>(null, future,
+                    srcVolume, null, destStore);
+            AsyncCallbackDispatcher<VolumeServiceImpl, CopyCommandResult> caller = AsyncCallbackDispatcher.create(this);
+            caller.setCallback(caller.getTarget().migrateVolumeCallBack(null, null)).setContext(context);
+            this.motionSrv.migrateAsync(srcVolume, destStore, caller);
+        } catch (Exception e) {
+            s_logger.debug("Failed to copy volume", e);
+            res.setResult(e.toString());
+            future.complete(res);
+        }
+        return future;
+    }
+
+    protected Void migrateVolumeCallBack(AsyncCallbackDispatcher<VolumeServiceImpl, CopyCommandResult> callback,
+            MigrateVolumeContext<VolumeApiResult> context) {
+        VolumeInfo srcVolume = context.srcVolume;
+        VolumeInfo destVolume = context.destVolume;
+        CopyCommandResult result = callback.getResult();
+        AsyncCallFuture<VolumeApiResult> future = context.future;
+        VolumeApiResult res = new VolumeApiResult(destVolume);
+        try {
+            if (result.isFailed()) {
+                res.setResult(result.getResult());
+                srcVolume.processEvent(Event.OperationFailed);
+                future.complete(res);
+            } else {
+                srcVolume.processEvent(Event.OperationSuccessed);
+                future.complete(res);
+            }
+        } catch (Exception e) {
+            s_logger.error("Failed to process copy volume callback", e);
+            res.setResult(e.toString());
+            future.complete(res);
+        }
+
+        return null;
+    }
+
     @Override
     public AsyncCallFuture<VolumeApiResult> registerVolume(VolumeInfo volume, DataStore store) {
         
