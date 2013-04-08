@@ -28,7 +28,7 @@ import com.cloud.storage.StoragePoolStatus;
 import com.google.gson.annotations.SerializedName;
 
 @EntityReference(value=StoragePool.class)
-public class StoragePoolResponse extends BaseResponse {
+public class StoragePoolForMigrationResponse extends BaseResponse {
     @SerializedName("id") @Param(description="the ID of the storage pool")
     private String id;
 
@@ -82,6 +82,10 @@ public class StoragePoolResponse extends BaseResponse {
     
     @SerializedName(ApiConstants.SCOPE) @Param(description="the scope of the storage pool")
     private String scope;
+
+    @SerializedName("suitableformigration") @Param(description="true if this pool is suitable to migrate a volume," +
+            " false otherwise")
+    private Boolean suitableForMigration;
 
     /**
      * @return the scope
@@ -236,5 +240,9 @@ public class StoragePoolResponse extends BaseResponse {
 
     public void setState(StoragePoolStatus state) {
         this.state = state;
+    }
+
+    public void setSuitableForMigration(Boolean suitableForMigration) {
+        this.suitableForMigration = suitableForMigration;
     }
 }

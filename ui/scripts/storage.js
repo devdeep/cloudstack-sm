@@ -416,11 +416,11 @@
                   validation: { required: true },
                   select: function(args) {
                     $.ajax({
-                      url: createURL("listStoragePoolsForMigration&id=" + args.context.volumes[0].id),
+                      url: createURL("findStoragePoolsForMigration&id=" + args.context.volumes[0].id),
                       dataType: "json",
                       async: true,
                       success: function(json) {
-                            var pools = json.liststoragepoolsresponse.storagepool;
+                            var pools = json.findstoragepoolsformigrationresponse.storagepool;
                             var items = [];
                             $(pools).each(function() {
                               items.push({id: this.id, description: this.name + " (" + (this.suitableformigration? "Suitable": "Not Suitable")+")"   });

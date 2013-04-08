@@ -29,7 +29,7 @@ import com.cloud.serializer.Param;
 import com.google.gson.annotations.SerializedName;
 
 @EntityReference(value=Host.class)
-public class HostResponse extends BaseResponse {
+public class HostForMigrationResponse extends BaseResponse {
     @SerializedName(ApiConstants.ID) @Param(description="the ID of the host")
     private String id;
 
@@ -150,6 +150,9 @@ public class HostResponse extends BaseResponse {
     @SerializedName("suitableformigration") @Param(description="true if this host is suitable(has enough capacity and satisfies all conditions like hosttags, max guests vm limit etc) to migrate a VM to it , false otherwise")
     private Boolean suitableForMigration;
 
+    @SerializedName("requiresStorageMotion") @Param(description="true if migrating a vm to this host requires storage motion, false otherwise")
+    private Boolean requiresStorageMotion;
+
     @SerializedName("resourcestate") @Param(description="the resource state of the host")
     private String resourceState;
 
@@ -158,7 +161,6 @@ public class HostResponse extends BaseResponse {
 
     @SerializedName(ApiConstants.HA_HOST) @Param(description="true if the host is Ha host (dedicated to vms started by HA process; false otherwise")
     private Boolean haHost;
-
 
     @Override
     public String getObjectId() {
@@ -317,7 +319,6 @@ public class HostResponse extends BaseResponse {
         this.events = events;
     }
 
-
     public String getHostTags() {
         return hostTags;
     }
@@ -332,6 +333,10 @@ public class HostResponse extends BaseResponse {
 
     public void setSuitableForMigration(Boolean suitableForMigration) {
         this.suitableForMigration = suitableForMigration;
+    }
+
+    public void setRequiresStorageMotion(Boolean requiresStorageMotion) {
+        this.requiresStorageMotion = requiresStorageMotion;
     }
 
     public String getResourceState() {

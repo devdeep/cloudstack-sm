@@ -172,13 +172,10 @@ public class ListHostsCmd extends BaseListCmd {
         } else {
             Pair<List<? extends Host>,Integer> result;
             List<? extends Host> hostsWithCapacity = new ArrayList<Host>();
-            Map<Host, Boolean> hostsRequiringStorageMotion;
-
             Ternary<Pair<List<? extends Host>,Integer>, List<? extends Host>, Map<Host, Boolean>> hostsForMigration =
                     _mgr.listHostsForMigrationOfVM(getVirtualMachineId(), this.getStartIndex(), this.getPageSizeVal());
             result = hostsForMigration.first();
             hostsWithCapacity = hostsForMigration.second();
-            hostsRequiringStorageMotion = hostsForMigration.third();
 
             response = new ListResponse<HostResponse>();
             List<HostResponse> hostResponses = new ArrayList<HostResponse>();
@@ -189,14 +186,6 @@ public class ListHostsCmd extends BaseListCmd {
                     suitableForMigration = true;
                 }
                 hostResponse.setSuitableForMigration(suitableForMigration);
-
-                Boolean requiresStorageMotion = hostsRequiringStorageMotion.get(host);
-                if (requiresStorageMotion != null && requiresStorageMotion) {
-                    hostResponse.setRequiresStorageMotion(true);
-                } else {
-                    hostResponse.setRequiresStorageMotion(false);
-                }
-
                 hostResponse.setObjectName("host");
                 hostResponses.add(hostResponse);
             }

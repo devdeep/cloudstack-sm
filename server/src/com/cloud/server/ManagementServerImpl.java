@@ -2197,7 +2197,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(CancelMaintenanceCmd.class);
         cmdList.add(DeleteHostCmd.class);
         cmdList.add(ListHostsCmd.class);
-        cmdList.add(ListHostsForMigrationCmd.class);
+        cmdList.add(FindHostsForMigrationCmd.class);
         cmdList.add(PrepareForMaintenanceCmd.class);
         cmdList.add(ReconnectHostCmd.class);
         cmdList.add(UpdateHostCmd.class);
@@ -2254,7 +2254,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(DeletePoolCmd.class);
         cmdList.add(ListS3sCmd.class);
         cmdList.add(ListStoragePoolsCmd.class);
-        cmdList.add(ListStoragePoolsForMigrationCmd.class);
+        cmdList.add(FindStoragePoolsForMigrationCmd.class);
         cmdList.add(PreparePrimaryStorageForMaintenanceCmd.class);
         cmdList.add(UpdateStoragePoolCmd.class);
         cmdList.add(AddSwiftCmd.class);

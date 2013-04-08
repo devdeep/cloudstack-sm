@@ -29,6 +29,7 @@ import org.apache.cloudstack.api.response.DiskOfferingResponse;
 import org.apache.cloudstack.api.response.DomainRouterResponse;
 import org.apache.cloudstack.api.response.EventResponse;
 import org.apache.cloudstack.api.response.HostResponse;
+import org.apache.cloudstack.api.response.HostForMigrationResponse;
 import org.apache.cloudstack.api.response.InstanceGroupResponse;
 import org.apache.cloudstack.api.response.ProjectAccountResponse;
 import org.apache.cloudstack.api.response.ProjectInvitationResponse;
@@ -37,6 +38,7 @@ import org.apache.cloudstack.api.response.ResourceTagResponse;
 import org.apache.cloudstack.api.response.SecurityGroupResponse;
 import org.apache.cloudstack.api.response.ServiceOfferingResponse;
 import org.apache.cloudstack.api.response.StoragePoolResponse;
+import org.apache.cloudstack.api.response.StoragePoolForMigrationResponse;
 import org.apache.cloudstack.api.response.UserResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.api.response.VolumeResponse;
@@ -228,6 +230,24 @@ public class ViewResponseHelper {
         return new ArrayList<HostResponse>(vrDataList.values());
     }
 
+    public static List<HostForMigrationResponse> createHostForMigrationResponse(EnumSet<HostDetails> details,
+            HostJoinVO... hosts) {
+        Hashtable<Long, HostForMigrationResponse> vrDataList = new Hashtable<Long, HostForMigrationResponse>();
+        // Initialise the vrdatalist with the input data
+        for (HostJoinVO vr : hosts) {
+            HostForMigrationResponse vrData = vrDataList.get(vr.getId());
+            if ( vrData == null ) {
+                // first time encountering this vm
+                vrData = ApiDBUtils.newHostForMigrationResponse(vr, details);
+            } else {
+                // update tags
+                vrData = ApiDBUtils.fillHostForMigrationDetails(vrData, vr);
+            }
+            vrDataList.put(vr.getId(), vrData);
+        }
+        return new ArrayList<HostForMigrationResponse>(vrDataList.values());
+    }
+
     public static List<VolumeResponse> createVolumeResponse(VolumeJoinVO... volumes) {
         Hashtable<Long, VolumeResponse> vrDataList = new Hashtable<Long, VolumeResponse>();
         for (VolumeJoinVO vr : volumes) {
@@ -261,6 +281,23 @@ public class ViewResponseHelper {
             vrDataList.put(vr.getId(), vrData);
         }
         return new ArrayList<StoragePoolResponse>(vrDataList.values());
+    }
+
+    public static List<StoragePoolForMigrationResponse> createStoragePoolForMigrationResponse(StoragePoolJoinVO... pools) {
+        Hashtable<Long, StoragePoolForMigrationResponse> vrDataList = new Hashtable<Long, StoragePoolForMigrationResponse>();
+        // Initialise the vrdatalist with the input data
+        for (StoragePoolJoinVO vr : pools) {
+            StoragePoolForMigrationResponse vrData = vrDataList.get(vr.getId());
+            if ( vrData == null ) {
+                // first time encountering this vm
+                vrData = ApiDBUtils.newStoragePoolForMigrationResponse(vr);
+            } else {
+                // update tags
+                vrData = ApiDBUtils.fillStoragePoolForMigrationDetails(vrData, vr);
+            }
+            vrDataList.put(vr.getId(), vrData);
+        }
+        return new ArrayList<StoragePoolForMigrationResponse>(vrDataList.values());
     }
 
 

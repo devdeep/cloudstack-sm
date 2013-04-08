@@ -26,26 +26,27 @@ import org.apache.log4j.Logger;
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.BaseListCmd;
 import org.apache.cloudstack.api.Parameter;
-import org.apache.cloudstack.api.response.HostResponse;
+import org.apache.cloudstack.api.response.HostForMigrationResponse;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import com.cloud.host.Host;
 import com.cloud.utils.Pair;
 import com.cloud.utils.Ternary;
 
-@APICommand(name = "listHostsForMigration", description="Lists hosts.", responseObject=HostResponse.class)
-public class ListHostsForMigrationCmd extends BaseListCmd {
-    public static final Logger s_logger = Logger.getLogger(ListHostsForMigrationCmd.class.getName());
+@APICommand(name = "findHostsForMigration", description="Find hosts suitable for migrating a virtual machine.",
+    responseObject=HostForMigrationResponse.class)
+public class FindHostsForMigrationCmd extends BaseListCmd {
+    public static final Logger s_logger = Logger.getLogger(FindHostsForMigrationCmd.class.getName());
 
-    private static final String s_name = "listhostsformigrationresponse";
+    private static final String s_name = "findhostsformigrationresponse";
 
     /////////////////////////////////////////////////////
     //////////////// API parameters /////////////////////
     /////////////////////////////////////////////////////
 
     @Parameter(name=ApiConstants.VIRTUAL_MACHINE_ID, type=CommandType.UUID, entityType = UserVmResponse.class,
-            required=false, description="lists hosts in the same cluster as this VM and flag hosts with enough " +
-                "CPU/RAM to host this VM")
+            required=false, description="find hosts to which this VM can be migrated and flag the hosts with enough " +
+                "CPU/RAM to host the VM")
     private Long virtualMachineId;
 
     /////////////////////////////////////////////////////
@@ -67,7 +68,7 @@ public class ListHostsForMigrationCmd extends BaseListCmd {
 
     @Override
     public void execute() {
-        ListResponse<HostResponse> response = null;
+        ListResponse<HostForMigrationResponse> response = null;
         Pair<List<? extends Host>,Integer> result;
         List<? extends Host> hostsWithCapacity = new ArrayList<Host>();
         Map<Host, Boolean> hostsRequiringStorageMotion;
@@ -78,10 +79,10 @@ public class ListHostsForMigrationCmd extends BaseListCmd {
         hostsWithCapacity = hostsForMigration.second();
         hostsRequiringStorageMotion = hostsForMigration.third();
 
-        response = new ListResponse<HostResponse>();
-        List<HostResponse> hostResponses = new ArrayList<HostResponse>();
+        response = new ListResponse<HostForMigrationResponse>();
+        List<HostForMigrationResponse> hostResponses = new ArrayList<HostForMigrationResponse>();
         for (Host host : result.first()) {
-            HostResponse hostResponse = _responseGenerator.createHostResponse(host);
+            HostForMigrationResponse hostResponse = _responseGenerator.createHostForMigrationResponse(host);
             Boolean suitableForMigration = false;
             if (hostsWithCapacity.contains(host)) {
                 suitableForMigration = true;

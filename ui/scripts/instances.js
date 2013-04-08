@@ -959,13 +959,13 @@
                   validation: { required: true },
                   select: function(args) {
                     $.ajax({
-                      url: createURL("listHostsForMigration&VirtualMachineId=" + args.context.instances[0].id),
+                      url: createURL("findHostsForMigration&VirtualMachineId=" + args.context.instances[0].id),
                       //url: createURL("listHosts"),	//for testing only, comment it out before checking in.
                       dataType: "json",
                       async: true,
                       success: function(json) {
-                        var hosts = json.listhostsformigrationresponse.host;
-                        requiresStorageMotion =  json.listhostsformigrationresponse.host[0].requiresStorageMotion;
+                        var hosts = json.findhostsformigrationresponse.host;
+                        requiresStorageMotion =  json.findhostsformigrationresponse.host[0].requiresStorageMotion;
                         var items = [];
                         $(hosts).each(function() {
                         if(this.requiresStorageMotion == true)
