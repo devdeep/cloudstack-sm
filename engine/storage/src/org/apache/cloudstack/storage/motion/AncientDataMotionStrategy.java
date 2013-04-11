@@ -20,6 +20,7 @@ package org.apache.cloudstack.storage.motion;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -57,11 +58,13 @@ import com.cloud.agent.api.storage.CreatePrivateTemplateAnswer;
 import com.cloud.agent.api.to.S3TO;
 import com.cloud.agent.api.to.StorageFilerTO;
 import com.cloud.agent.api.to.SwiftTO;
+import com.cloud.agent.api.to.VirtualMachineTO;
 import com.cloud.configuration.Config;
 import com.cloud.configuration.dao.ConfigurationDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
 import com.cloud.exception.StorageUnavailableException;
+import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.storage.DiskOfferingVO;
@@ -143,9 +146,8 @@ public class AncientDataMotionStrategy implements DataMotionStrategy {
     }
 
     @Override
-    public boolean canHandle(DataObject srcData, DataStore destStore) {
-        // TODO Auto-generated method stub
-        return true;
+    public boolean canHandle(Map<VolumeInfo, DataStore> volumeMap, Host srcHost, Host destHost) {
+        return false;
     }
 
     @DB
@@ -484,7 +486,12 @@ public class AncientDataMotionStrategy implements DataMotionStrategy {
             	answer = cloneVolume(srcData, destData);
             } else if (destData.getType() == DataObjectType.VOLUME
                     && srcData.getType() == DataObjectType.VOLUME && srcData.getDataStore().getRole() == DataStoreRole.Primary) {
-            	answer = copyVolumeBetweenPools(srcData, destData);
+                if (srcData.getId() == destData.getId()) {
+                    // The volume has to be migrated across storage pools.
+                    answer = migrateVolumeToPool(srcData, destData.getDataStore());
+                } else {
+                    answer = copyVolumeBetweenPools(srcData, destData);
+                }
             } else if (srcData.getType() == DataObjectType.SNAPSHOT &&
             		destData.getType() == DataObjectType.SNAPSHOT) {
             	answer = copySnapshot(srcData, destData);
@@ -501,26 +508,10 @@ public class AncientDataMotionStrategy implements DataMotionStrategy {
     }
 
     @Override
-    public Void migrateAsync(DataObject srcData, DataStore destStore,
+    public Void copyAsync(Map<VolumeInfo, DataStore> volumeMap, VirtualMachineTO vmTo, Host srcHost, Host destHost,
             AsyncCompletionCallback<CopyCommandResult> callback) {
-        Answer answer = null;
-        String errMsg = null;
-        try {
-            if (srcData.getType() == DataObjectType.VOLUME &&
-                    srcData.getDataStore().getRole() == DataStoreRole.Primary &&
-                    destStore.getRole() == DataStoreRole.Primary) {
-                answer = migrateVolumeToPool(srcData, destStore);
-            } else {
-                throw new CloudRuntimeException("Unimplemented operation requested for migrating volume " + srcData +
-                        " to data store " + destStore);
-            }
-        } catch (CloudRuntimeException e) {
-            s_logger.error("migration failed for volume " + srcData + " to data store " + destStore, e);
-            errMsg = e.toString();
-        }
-
-        CopyCommandResult result = new CopyCommandResult(null, answer);
-        result.setResult(errMsg);
+        CopyCommandResult result = new CopyCommandResult(null, null);
+        result.setResult("Unsupported operation requested for copying data.");
         callback.complete(result);
 
         return null;

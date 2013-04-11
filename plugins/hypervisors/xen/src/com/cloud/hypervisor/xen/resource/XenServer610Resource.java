@@ -147,6 +147,7 @@ public class XenServer610Resource extends XenServer56FP1Resource {
         }
 
         try {
+            prepareISO(connection, vmSpec.getName());
             Map<String, String> other = new HashMap<String, String>();
             other.put("live", "true");
             Network networkForSm = getNativeNetworkForTraffic(connection, TrafficType.Storage, null).getNetwork();

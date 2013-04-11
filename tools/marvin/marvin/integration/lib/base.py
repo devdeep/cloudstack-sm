@@ -1502,9 +1502,9 @@ class Host:
     def listForMigration(cls, apiclient, **kwargs):
         """List all Hosts for migration matching criteria"""
 
-        cmd = listHostsForMigration.listHostsForMigrationCmd()
+        cmd = findHostsForMigration.findHostsForMigrationCmd()
         [setattr(cmd, k, v) for k, v in kwargs.items()]
-        return(apiclient.listHostsForMigration(cmd))
+        return(apiclient.findHostsForMigration(cmd))
 
 
 class StoragePool:
@@ -1571,9 +1571,9 @@ class StoragePool:
     def listForMigration(cls, apiclient, **kwargs):
         """List all storage pools for migration matching criteria"""
 
-        cmd = listStoragePoolsForMigration.listStoragePoolsForMigrationCmd()
+        cmd = findStoragePoolsForMigration.findStoragePoolsForMigrationCmd()
         [setattr(cmd, k, v) for k, v in kwargs.items()]
-        return(apiclient.listStoragePoolsForMigration(cmd))
+        return(apiclient.findStoragePoolsForMigration(cmd))
 
 class Network:
     """Manage Network pools"""

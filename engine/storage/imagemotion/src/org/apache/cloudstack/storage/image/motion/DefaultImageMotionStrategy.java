@@ -18,12 +18,15 @@
  */
 package org.apache.cloudstack.storage.image.motion;
 
+import java.util.Map;
+
 import javax.inject.Inject;
 
 import org.apache.cloudstack.engine.subsystem.api.storage.CopyCommandResult;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataObject;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
 import org.apache.cloudstack.engine.subsystem.api.storage.EndPoint;
+import org.apache.cloudstack.engine.subsystem.api.storage.VolumeInfo;
 import org.apache.cloudstack.framework.async.AsyncCallbackDispatcher;
 import org.apache.cloudstack.framework.async.AsyncCompletionCallback;
 import org.apache.cloudstack.framework.async.AsyncRpcConext;
@@ -33,6 +36,8 @@ import org.apache.cloudstack.storage.endpoint.EndPointSelector;
 import org.apache.cloudstack.storage.volume.TemplateOnPrimaryDataStoreInfo;
 
 import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.to.VirtualMachineTO;
+import com.cloud.host.Host;
 
 //At least one of datastore is coming from image store or image cache store
 
@@ -96,7 +101,7 @@ public class DefaultImageMotionStrategy implements ImageMotionStrategy {
     }
 
     @Override
-    public boolean canHandle(DataObject srcData, DataStore destStore) {
+    public boolean canHandle(Map<VolumeInfo, DataStore> volumeMap, Host srcHost, Host destHost) {
         return false;
     }
 
@@ -143,7 +148,7 @@ public class DefaultImageMotionStrategy implements ImageMotionStrategy {
     }
 
     @Override
-    public Void migrateAsync(DataObject srcData, DataStore destStore,
+    public Void copyAsync(Map<VolumeInfo, DataStore> volumeMap, VirtualMachineTO vmTo, Host srcHost, Host destHost,
             AsyncCompletionCallback<CopyCommandResult> callback) {
         CopyCommandResult result = new CopyCommandResult("", null);
         result.setResult("not implemented");
