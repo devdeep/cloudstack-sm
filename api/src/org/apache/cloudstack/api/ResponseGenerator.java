@@ -196,6 +196,10 @@ public interface ResponseGenerator {
 
     HostResponse createHostResponse(Host host);
 
+    HostForMigrationResponse createHostForMigrationResponse(Host host);
+
+    HostForMigrationResponse createHostForMigrationResponse(Host host, EnumSet<HostDetails> details);
+
     VlanIpRangeResponse createVlanIpRangeResponse(Vlan vlan);
 
     IPAddressResponse createIPAddressResponse(IpAddress ipAddress);
@@ -222,6 +226,8 @@ public interface ResponseGenerator {
     InstanceGroupResponse createInstanceGroupResponse(InstanceGroup group);
 
     StoragePoolResponse createStoragePoolResponse(StoragePool pool);
+
+    StoragePoolForMigrationResponse createStoragePoolForMigrationResponse(StoragePool pool);
 
     ClusterResponse createClusterResponse(Cluster cluster, Boolean showCapacities);
 
